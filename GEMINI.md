@@ -106,8 +106,12 @@
 - **Correction du Bug d'Affichage Écran Noir (`CameraViewfinder.tsx`)** : Correction de l'erreur JavaScript `ReferenceError: lastCapturedToast is not defined` à la ligne 448 qui bloquait le rendu du composant et provoquait l'erreur d'écran noir. Compilation TypeScript validée à 100% avec 0 erreur.
 
 **[2026-08-13] — Session 25 : Séparation Strict "Appareil Photo" vs "Galerie Fichiers" & Activation HTTPS SSL (`vite.config.ts` & `CameraViewfinder.tsx`)**
-- **Déclencheur Matériel Caméra Dédié (`cameraInputRef`)** : Séparation de l'entrée fichier générique (`fileInputRef`) et création de la référence matérielle dédiée `<input type="file" accept="image/*" capture="camera" />`. Désormais, cliquer sur le bouton de l'appareil photo ouvre **DIRECTEMENT l'application Appareil Photo natif** sur smartphone (Android & iOS) au lieu d'ouvrir le gestionnaire de fichiers/dossiers.
+- **Déclencheur Matériel Caméra Dédié (`cameraInputRef`)** : Séparation de l'entrée fichier générique (`fileInputRef`) et création de la référence matérielle dédiée `<input type="file" accept="image/*" capture="environment" />`. Désormais, cliquer sur le bouton de l'appareil photo ouvre **DIRECTEMENT l'application Appareil Photo natif** sur smartphone (Android & iOS) au lieu d'ouvrir le gestionnaire de fichiers/dossiers.
 - **Support HTTPS Natif (`@vitejs/plugin-basic-ssl`)** : Intégration du plugin SSL sur le serveur Vite dev (`https://10.163.180.61:5173/`). Permet le fonctionnement natif de la caméra en direct (`getUserMedia`) et de l'overlay de numérisation OpenCV sans blocage de sécurité navigateur.
+
+**[2026-08-13] — Session 26 : Correction de l'Attribut HTML5 Caméra & Publication GitHub Réussie**
+- **Correction de la valeur `capture="environment"` (`CameraViewfinder.tsx`)** : Correction du soulignement rouge IDE / warning TypeScript sur l'attribut `capture`. La valeur non-standard `"camera"` a été remplacée par la constante officielle W3C/HTML5 `"environment"` (caméra arrière dédiée à la numérisation documentaire).
+- **Push GitHub Validé** : Commit & Push du correctif vers la branche `main` du repository [`https://github.com/elyseebanon7-ux/BanonPDF`](https://github.com/elyseebanon7-ux/BanonPDF).
 
 ---
 

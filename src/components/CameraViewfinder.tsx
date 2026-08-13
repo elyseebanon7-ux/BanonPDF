@@ -412,7 +412,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
             ref={cameraInputRef}
             type="file"
             accept="image/*"
-            capture="camera"
+            capture="environment"
             onChange={handleFileUpload}
             className="hidden"
           />
