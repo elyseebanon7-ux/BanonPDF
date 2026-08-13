@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, FileText, CheckCircle2, Download, Sparkles, ArrowRight, ShieldCheck, FileSpreadsheet, Presentation, Image as ImageIcon, Stamp, Lock, Merge, Split, QrCode } from 'lucide-react';
+import { X, FileText, CheckCircle2, Download, Sparkles, ArrowRight, FileSpreadsheet, Presentation, Image as ImageIcon, Stamp, Lock, Merge, Split, QrCode } from 'lucide-react';
 import type { DocumentItem } from '../types';
 
 interface ToolActionModalProps {
@@ -131,7 +131,7 @@ export const ToolActionModal: React.FC<ToolActionModalProps> = ({
                         )}
                         <div className="min-w-0">
                           <p className="text-xs font-bold truncate">{doc.title}</p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">{doc.pages.length} page(s) • {(doc.pdfSizeEstimateBytes / (1024 * 1024)).toFixed(2)} MB</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">{doc.pages.length} page(s) • {((doc.pdfSizeEstimateBytes || 0) / (1024 * 1024)).toFixed(2)} MB</p>
                         </div>
                       </div>
 

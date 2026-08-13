@@ -27,7 +27,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
   const [customTypedText, setCustomTypedText] = useState<string>('');
   const [showTextEditor, setShowTextEditor] = useState<boolean>(false);
 
-  const generateTypedWordCanvas = (rawOcrText: string, pageNum: number): string => {
+  const generateTypedWordCanvas = (rawOcrText: string, _pageNum: number): string => {
     const canvas = document.createElement('canvas');
     canvas.width = 1200;
     canvas.height = 1600;
@@ -101,7 +101,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
           ocrText: textToUse,
           processedImageUrl: typedUrl,
           thumbnailUrl: typedUrl,
-          filter: 'b&w',
+          filter: 'bw',
         };
       });
       onCaptureCompleted(formattedPages);

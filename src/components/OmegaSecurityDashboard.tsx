@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, AlertTriangle, Cpu, Terminal, CheckCircle2, Play, RefreshCw, FileCode, Layers, KeyRound, ShieldAlert, ArrowRight, Activity, Server } from 'lucide-react';
+import { ShieldCheck, Terminal, FileCode, Layers, ShieldAlert, ArrowRight, Activity } from 'lucide-react';
 import { OMEGA_SECURITY_EVIDENCE, simulateBreachScenario, getQuarantinePipelineStatus } from '../services/omegaSecurityService';
 import type { BreachSimulationResult } from '../services/omegaSecurityService';
 
@@ -120,8 +120,9 @@ export const OmegaSecurityDashboard: React.FC<OmegaSecurityDashboardProps> = ({
         {/* Tab 1: Assumed Breach Simulator */}
         {activeTab === 'SIMULATION' && (
           <div className="space-y-5 animate-in fade-in duration-200">
-            <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-300'} font-medium`}>
-              Tester l'étanchéité des cellules isolées en cas de brèche sur l'un des 6 actifs (Compte, Token, Parser PDF, IA Prompt, Attaque Financière).
+            <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-300'} font-medium flex items-center justify-between`}>
+              <span>Tester l'étanchéité des cellules isolées en cas de brèche sur l'un des 6 actifs.</span>
+              {isSimulating && <span className="text-cyan-400 font-bold animate-pulse">Simulation en cours...</span>}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

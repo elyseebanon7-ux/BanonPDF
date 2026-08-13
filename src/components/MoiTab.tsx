@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crown, Lock, Key, FileText, ChevronRight, ArrowLeft, ShieldCheck, CheckCircle2, LogOut, User as UserIcon, Cloud, BarChart3, DollarSign, Zap } from 'lucide-react';
+import { Crown, Lock, Key, ChevronRight, ArrowLeft, ShieldCheck, CheckCircle2, LogOut, User as UserIcon, Cloud, BarChart3 } from 'lucide-react';
 import type { UserProfile, AuditLogEntry } from '../types';
 import { logSecurityEvent } from '../services/securityService';
 import { getQuotaStatus } from '../services/costGuardService';

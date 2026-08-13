@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
   Search, RefreshCw, Crown, Camera, FileText, Image as ImageIcon,
   FolderInput, CreditCard, Type, Sparkles, Grid, Share2, FileType,
-  Eye, CheckSquare, Square, ChevronRight, Trash2, CheckCircle2, X, MoreVertical,
-  Sun, Moon, Upload, ShieldCheck, Zap
+  Eye, CheckSquare, Square, ChevronRight, Trash2, CheckCircle2, MoreVertical,
+  Sun, Moon, ShieldCheck, Zap
 } from 'lucide-react';
 import type { DocumentItem, CloudSyncStatus } from '../types';
 import { formatBytes } from '../services/pdfGenerator';

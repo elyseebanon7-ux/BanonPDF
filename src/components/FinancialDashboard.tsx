@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, ShieldAlert, TrendingUp, Cpu, PieChart, CheckCircle2, ArrowRight, Zap, RefreshCw, BarChart3 } from 'lucide-react';
+import { DollarSign, ShieldAlert, PieChart, ArrowRight } from 'lucide-react';
 import { calculateUnitEconomics, getQuotaStatus } from '../services/costGuardService';
 import type { SubscriptionTier } from '../types';
 
