@@ -137,6 +137,13 @@
   - `digitizeTextWithVisionAI` analyse désormais l'image réelle capturée ou importée en effectuant une extraction multi-passe (Gemini Vision AI + Binarisation B&W à contraste élevé + moteur Tesseract local).
   - Le texte dactylographié généré reflète désormais le CONTENU RÉEL présent sur la photo de l'utilisateur et non un texte d'exemple factice.
 
+**[2026-08-13] — Session 30 : Déclenchement Direct de la Caméra en Direct (Correction du Redirectionnement vers le Gestionnaire de Dossiers)**
+- **Correction de la Redirection Vers le Gestionnaire de Fichiers (`CameraViewfinder.tsx`)** :
+  - Modification du bouton d'action et du déclencheur d'obturation pour appeler directement `startCameraStream()` avec repli multi-contraintes (`environment` HD -> `environment` standard -> `video: true`) au lieu d'invoquer le `input type="file"` qui ouvrait le gestionnaire de dossiers/fichiers.
+  - Séparation claire des deux parcours utilisateurs sur l'écran de viseur :
+    1. **Bouton Principal** : *"Démarrer la Caméra en Direct"* (Déclenche le flux vidéo matériel de l'appareil photo).
+    2. **Bouton Secondaire** : *"📁 Choisir une photo depuis vos dossiers"* (Dédié exclusivement à l'import de fichiers existants depuis le stockage).
+
 ---
 
 ## 9. CHARTE DE RENTABILITÉ, UNIT ECONOMICS ET RÉSILIENCE TECHNIQUE (69 PRINCIPES D'EXCELLENCE FINANCIÈRE)

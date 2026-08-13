@@ -131,17 +131,35 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
     setCameraError(null);
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-        });
-        if (videoRef.current) {
+        let stream: MediaStream | null = null;
+        try {
+          // Attempt 1: Back camera HD (environment)
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+          });
+        } catch (e1) {
+          try {
+            // Attempt 2: Back camera standard
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'environment' },
+            });
+          } catch (e2) {
+            // Attempt 3: Any available camera (front camera, webcam, etc.)
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+            });
+          }
+        }
+
+        if (stream && videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
           setStreamActive(true);
+          setCameraError(null);
         }
       } else {
         setCameraError("Accès caméra non supporté.");
@@ -149,7 +167,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
     } catch (err: any) {
       console.warn("Camera stream warning:", err);
       setStreamActive(false);
-      setCameraError("Caméra non disponible. Cliquez ci-dessous pour utiliser l'appareil photo natif.");
+      setCameraError("Veuillez autoriser l'accès à la caméra dans votre navigateur pour démarrer la numérisation en direct.");
     }
   };
 
@@ -322,7 +340,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
 
   const handleTriggerCapture = () => {
     if (!streamActive) {
-      cameraInputRef.current?.click();
+      startCameraStream();
       return;
     }
     if (timerSeconds > 0) {
@@ -460,18 +478,28 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
               <CameraIcon className="w-10 h-10 stroke-[2.5]" />
             </div>
             <div className="space-y-1.5 max-w-xs">
-              <h3 className="text-base font-black text-white">Appareil Photo Natif Prêt</h3>
+              <h3 className="text-base font-black text-white">Appareil Photo HD</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Appuyez sur le bouton ci-dessous pour capturer directement vos documents avec l'appareil photo HD de votre téléphone.
+                Appuyez ci-dessous pour démarrer la numérisation en direct avec la caméra de votre appareil.
               </p>
             </div>
-            <button
-              onClick={() => cameraInputRef.current?.click()}
-              className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-sm rounded-2xl shadow-2xl shadow-emerald-500/30 flex items-center gap-2.5 transition-transform active:scale-95 cursor-pointer"
-            >
-              <CameraIcon className="w-5 h-5 stroke-[2.5]" />
-              <span>Ouvrir l'Appareil Photo (HD)</span>
-            </button>
+            <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+              <button
+                onClick={startCameraStream}
+                className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-sm rounded-2xl shadow-2xl shadow-emerald-500/30 flex items-center justify-center gap-2.5 transition-transform active:scale-95 cursor-pointer"
+              >
+                <CameraIcon className="w-5 h-5 stroke-[2.5]" />
+                <span>Démarrer la Caméra en Direct</span>
+              </button>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-3 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl border border-slate-700/80 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <ImageIcon className="w-4 h-4 text-emerald-400" />
+                <span>📁 Choisir une photo depuis vos dossiers</span>
+              </button>
+            </div>
           </div>
         )}
 
