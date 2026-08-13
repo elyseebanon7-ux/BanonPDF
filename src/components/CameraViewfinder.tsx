@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Zap, ZapOff, Clock, Sparkles, X, Camera as CameraIcon, Plus, FileText, CheckCircle2, Image as ImageIcon, Grid, Layers, ArrowLeft } from 'lucide-react';
+import { Zap, ZapOff, Clock, Sparkles, X, Camera as CameraIcon, Plus, FileText, CheckCircle2, Image as ImageIcon, Grid, Layers, ArrowLeft, RefreshCw, Wand2, Type } from 'lucide-react';
 import type { QuadCorners, ScanPage } from '../types';
 import { getDefaultCorners, applyFilterToCanvas } from '../services/imageProcessor';
+import { enhanceScanWithAI, digitizeTextWithVisionAI } from '../services/aiVisionService';
 
 interface CameraViewfinderProps {
   onCaptureCompleted: (pages: ScanPage[]) => void;
@@ -26,85 +27,89 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
   const [lastCapturedToast, setLastCapturedToast] = useState<string | null>(null);
   const [customTypedText, setCustomTypedText] = useState<string>('');
   const [showTextEditor, setShowTextEditor] = useState<boolean>(false);
+  const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
+  const [activeActionType, setActiveActionType] = useState<'enhance' | 'digitize' | null>(null);
 
-  const generateTypedWordCanvas = (rawOcrText: string, _pageNum: number): string => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1200;
-    canvas.height = 1600;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
+  /**
+   * Action 1 : Améliorer le Scan (IA)
+   * Conserve l'image/document d'origine et applique un traitement visuel
+   * (dépoussiérage, correction de la perspective, contraste, suppression des ombres et blanchiment du fond).
+   */
+  const handleEnhanceScan = async () => {
+    const pagesToProcess = pendingPages.length > 0 ? pendingPages : scannedPages;
+    if (pagesToProcess.length === 0) return;
 
-    // Pure white A4 paper background (ZERO watermark, ZERO template header)
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 1200, 1600);
+    setIsProcessingAction(true);
+    setActiveActionType('enhance');
 
-    const marginX = 90;
-    const maxWidth = 1020;
-    let currentY = 120;
+    try {
+      const enhancedPages: ScanPage[] = await Promise.all(
+        pagesToProcess.map(async (page) => {
+          const res = await enhanceScanWithAI(page.originalImageUrl || page.processedImageUrl);
+          return {
+            ...page,
+            processedImageUrl: res.enhancedImageUrl,
+            thumbnailUrl: res.enhancedImageUrl,
+            filter: 'magic',
+            brightness: 12,
+            contrast: 18,
+          };
+        })
+      );
 
-    const contentText =
-      rawOcrText && rawOcrText.trim()
-        ? rawOcrText
-        : "TEXTE SÉLECTIONNÉ OU EXTRAIT DU DOCUMENT PAPIER";
-
-    const paragraphs = contentText.split('\n');
-
-    paragraphs.forEach((paragraph) => {
-      if (!paragraph.trim()) {
-        currentY += 18;
-        return;
-      }
-
-      if (paragraph.startsWith('•') || (paragraph.toUpperCase() === paragraph && paragraph.length < 60)) {
-        ctx.font = 'bold 26px sans-serif';
-        ctx.fillStyle = '#0f172a';
-      } else {
-        ctx.font = '22px sans-serif';
-        ctx.fillStyle = '#334155';
-      }
-
-      const words = paragraph.split(' ');
-      let line = '';
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) {
-          ctx.fillText(line.trim(), marginX, currentY);
-          line = words[n] + ' ';
-          currentY += 36;
-        } else {
-          line = testLine;
-        }
-      }
-      if (line.trim()) {
-        ctx.fillText(line.trim(), marginX, currentY);
-        currentY += 36;
-      }
-      currentY += 8;
-    });
-
-    return canvas.toDataURL('image/jpeg', 0.95);
+      setShowRenderChoiceModal(false);
+      setIsProcessingAction(false);
+      setActiveActionType(null);
+      onCaptureCompleted(enhancedPages);
+    } catch (err) {
+      console.error('Enhance scan error:', err);
+      setIsProcessingAction(false);
+      setActiveActionType(null);
+      onCaptureCompleted(pagesToProcess);
+    }
   };
 
-  const handleChooseRenderOption = (choice: 'original' | 'word') => {
+  /**
+   * Action 2 : Numériser & Retaper le texte (IA) (OCR Multimodal + Mise en page DTP Word)
+   * Extraction et retranscription intégrale du contenu (texte manuscrit ou imprimé)
+   * via modèle OCR multimodal Vision AI / Gemini 1.5 Pro Vision, avec conversion
+   * en document propre et éditable ("mise en page ordinateur").
+   */
+  const handleDigitizeText = async () => {
     const pagesToProcess = pendingPages.length > 0 ? pendingPages : scannedPages;
-    setShowRenderChoiceModal(false);
+    if (pagesToProcess.length === 0) return;
 
-    if (choice === 'original') {
+    setIsProcessingAction(true);
+    setActiveActionType('digitize');
+
+    try {
+      const digitizedPages: ScanPage[] = await Promise.all(
+        pagesToProcess.map(async (page) => {
+          const textToUse = customTypedText.trim() || page.ocrText;
+          const result = await digitizeTextWithVisionAI(
+            page.originalImageUrl || page.processedImageUrl,
+            textToUse
+          );
+
+          return {
+            ...page,
+            ocrText: result.text,
+            processedImageUrl: result.dtpCanvasUrl,
+            thumbnailUrl: result.dtpCanvasUrl,
+            filter: 'bw',
+          };
+        })
+      );
+
+      setShowRenderChoiceModal(false);
+      setIsProcessingAction(false);
+      setActiveActionType(null);
+      onCaptureCompleted(digitizedPages);
+    } catch (err) {
+      console.error('Digitize text error:', err);
+      setIsProcessingAction(false);
+      setActiveActionType(null);
       onCaptureCompleted(pagesToProcess);
-    } else {
-      const formattedPages: ScanPage[] = pagesToProcess.map((page, idx) => {
-        const textToUse = customTypedText.trim() || page.ocrText || 'Texte dactylographié extrait de la photo';
-        const typedUrl = generateTypedWordCanvas(textToUse, idx + 1);
-        return {
-          ...page,
-          ocrText: textToUse,
-          processedImageUrl: typedUrl,
-          thumbnailUrl: typedUrl,
-          filter: 'bw',
-        };
-      });
-      onCaptureCompleted(formattedPages);
     }
   };
 
@@ -634,60 +639,93 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
       {/* Post-Capture 2-Option Choice Dialog Modal */}
       {showRenderChoiceModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-white">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-white">
             <div className="text-center space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto mb-2">
                 <Sparkles className="w-6 h-6 stroke-[2.5]" />
               </div>
-              <h3 className="text-lg font-black tracking-tight">Rendu de Numérisation</h3>
-              <p className="text-xs text-slate-400">Comment souhaitez-vous traiter ce document ?</p>
+              <h3 className="text-lg font-black tracking-tight">Post-Scan Traitement IA</h3>
+              <p className="text-xs text-slate-400">Sélectionnez le traitement d'intelligence artificielle souhaité :</p>
             </div>
 
-            <div className="space-y-3">
-              {/* Option 1: Document Original */}
-              <button
-                onClick={() => handleChooseRenderOption('original')}
-                className="w-full p-4 rounded-2xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 flex items-start gap-3.5 text-left transition-all active:scale-95 group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
-                  <FileText className="w-5 h-5" />
+            {/* Prévisualisation immédiate du document capturé */}
+            {(pendingPages.length > 0 || scannedPages.length > 0) && (
+              <div className="relative w-full h-44 rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden flex items-center justify-center p-2">
+                <img
+                  src={
+                    (pendingPages[0] || scannedPages[scannedPages.length - 1])?.thumbnailUrl ||
+                    (pendingPages[0] || scannedPages[scannedPages.length - 1])?.processedImageUrl ||
+                    (pendingPages[0] || scannedPages[scannedPages.length - 1])?.originalImageUrl
+                  }
+                  alt="Prévisualisation du document"
+                  className="max-h-full max-w-full object-contain rounded-lg shadow-xl"
+                />
+                <div className="absolute top-2.5 right-2.5 bg-slate-900/90 text-emerald-400 text-[10px] font-black px-2.5 py-1 rounded-full border border-emerald-500/40 shadow-lg flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>Document Capturé</span>
                 </div>
-                <div>
-                  <h4 className="text-xs font-black text-white group-hover:text-blue-300">Document Original (Scanner Pur)</h4>
-                  <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
-                    Conserve la photo numérisée nette avec le filtre papier <span className="text-emerald-400 font-bold">Magic Color</span>. L'écriture manuscrite et le papier sont préservés.
+              </div>
+            )}
+
+            {/* Les 2 Boutons d'Action Clairs sous la Prévisualisation */}
+            <div className="space-y-3">
+              {/* Bouton 1 : Améliorer le Scan (IA) */}
+              <button
+                onClick={handleEnhanceScan}
+                disabled={isProcessingAction}
+                className="w-full p-4 rounded-2xl bg-slate-800 hover:bg-slate-700/90 border border-slate-700 flex items-start gap-3.5 text-left transition-all active:scale-95 group cursor-pointer disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/40 text-teal-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
+                  {activeActionType === 'enhance' ? (
+                    <RefreshCw className="w-5 h-5 animate-spin text-teal-400" />
+                  ) : (
+                    <Wand2 className="w-5 h-5 stroke-[2.5]" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-white group-hover:text-teal-300">Améliorer le Scan (IA)</h4>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-teal-500/20 text-teal-300 border border-teal-500/40">Visuel IA</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-snug mt-1">
+                    Conserve l'image/document d'origine et applique un traitement visuel (dépoussiérage, correction de perspective, contraste, suppression d'ombres, blanchiment du fond).
                   </p>
                 </div>
               </button>
 
-              {/* Option 2: Saisie IA Pro Type Word */}
+              {/* Bouton 2 : Numériser & Retaper le texte (IA) */}
               <div className="space-y-2">
                 <button
-                  onClick={() => handleChooseRenderOption('word')}
-                  className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-teal-950/60 hover:from-emerald-900/80 hover:to-teal-900/80 border border-emerald-500/50 flex items-start gap-3.5 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/30 cursor-pointer"
+                  onClick={handleDigitizeText}
+                  disabled={isProcessingAction}
+                  className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 to-teal-950/80 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/60 flex items-start gap-3.5 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md">
-                    <Sparkles className="w-5 h-5 stroke-[2.5]" />
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md">
+                    {activeActionType === 'digitize' ? (
+                      <RefreshCw className="w-5 h-5 animate-spin text-slate-950" />
+                    ) : (
+                      <Type className="w-5 h-5 stroke-[2.5]" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black text-emerald-300">Saisie IA Pro (Type Word)</h4>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">IA</span>
+                      <h4 className="text-xs font-black text-emerald-300">Numériser & Retaper le texte (IA)</h4>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">OCR + DTP</span>
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-snug mt-0.5">
-                      Transcrit le contenu textuel exact de la photo sous forme dactylographiée propre sans filigrane.
+                    <p className="text-[11px] text-slate-300 leading-snug mt-1">
+                      Extraction OCR Multimodale Vision AI du texte (manuscrit/imprimé), conservation de la structure et rendu dactylographié "mise en page ordinateur".
                     </p>
                   </div>
                 </button>
 
-                {/* Optional Text Editor Accordion */}
+                {/* Text Editor Accordion for optional manual fine-tuning */}
                 <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 space-y-2">
                   <button
                     type="button"
                     onClick={() => setShowTextEditor(!showTextEditor)}
                     className="w-full flex items-center justify-between text-[11px] font-bold text-emerald-400 hover:text-emerald-300 cursor-pointer"
                   >
-                    <span>✏️ Éditer / Saisir le texte de la photo</span>
+                    <span>✏️ Éditer / Ajuster le texte à retranscrire</span>
                     <span className="text-[10px] text-slate-500">{showTextEditor ? 'Fermer ▲' : 'Ouvrir ▼'}</span>
                   </button>
 
@@ -695,7 +733,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
                     <textarea
                       value={customTypedText}
                       onChange={(e) => setCustomTypedText(e.target.value)}
-                      placeholder="Saisissez ou collez ici le texte présent sur la photo..."
+                      placeholder="Saisissez ou modifiez ici le texte présent sur la photo..."
                       className="w-full h-24 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none"
                     />
                   )}
@@ -708,6 +746,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
                 setShowRenderChoiceModal(false);
                 setShowTextEditor(false);
               }}
+              disabled={isProcessingAction}
               className="w-full py-2.5 text-center text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
             >
               Annuler

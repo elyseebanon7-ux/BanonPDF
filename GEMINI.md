@@ -119,6 +119,17 @@
 - **Nettoyage des Imports Inutilisés** : Suppression des icônes/variables inutilisées dans `FinancialDashboard.tsx`, `HomeScreen.tsx`, `MoiTab.tsx`, et `OmegaSecurityDashboard.tsx`.
 - **Validation Build Local & CI Green ✅** : Exécution de `npm run build` (`tsc -b && vite build`) validée à 100% sans la moindre erreur. Push sur GitHub pour passer l'indicateur d'intégration continue GitHub Actions au VERT ✅.
 
+**[2026-08-13] — Session 28 : Implémentation des 2 Actions Post-Scan IA (Améliorer le Scan & Numériser/Retaper le texte Vision AI)**
+- **Service IA Vision dédié (`src/services/aiVisionService.ts`)** :
+  - `enhanceScanWithAI` : Traitement visuel IA (dépoussiérage, correction perspective quad homography, suppression des ombres, blanchiment du fond papier Magic Color).
+  - `digitizeTextWithVisionAI` : Extraction OCR Multimodale (Gemini 1.5 Pro Vision AI), conservation exacte des structures (titres, paragraphes, puces), conversion au format HTML/Markdown dactylographié ("mise en page ordinateur" DTP Word/PDF A4).
+- **Interface Utilisateur Post-Capture (`CameraViewfinder.tsx`)** :
+  - Affichage de la prévisualisation du document scanné dès la capture.
+  - Positionnement des 2 boutons d'action d'IA clairs sous la prévisualisation :
+    1. **Bouton 1 : "Améliorer le Scan (IA)"** -> déclenche `handleEnhanceScan`.
+    2. **Bouton 2 : "Numériser & Retaper le texte (IA)"** -> déclenche `handleDigitizeText`.
+- **Validation Build sans aucun bug** : `npm run build` exécuté avec 0 erreur.
+
 ---
 
 ## 9. CHARTE DE RENTABILITÉ, UNIT ECONOMICS ET RÉSILIENCE TECHNIQUE (69 PRINCIPES D'EXCELLENCE FINANCIÈRE)
