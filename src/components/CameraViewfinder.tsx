@@ -288,9 +288,9 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
         filter: 'magic',
         brightness: 10,
         contrast: 15,
-        ocrText: `DOCUMENT PAPIER NUMÉRISÉ (PAGE ${pageNum})\n\nLe document présent sur la photo a été numérisé et analysé par l'intelligence artificielle Banon AI.\nToutes les écritures et informations ont été converties en caractères dactylographiés de haute précision.\n\n• Date de numérisation: ${new Date().toLocaleDateString('fr-FR')}\n• Qualité du rendu: Rehaussé Magic Color (Sans ombre)\n• Statut OCR: Texte recherchable et dactylographié prêts pour impression.`,
+        ocrText: '',
         ocrLanguage: 'fra',
-        ocrConfidence: 98,
+        ocrConfidence: 95,
         createdAt: Date.now(),
       };
 

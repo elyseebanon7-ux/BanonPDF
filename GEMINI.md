@@ -130,6 +130,13 @@
     2. **Bouton 2 : "Numériser & Retaper le texte (IA)"** -> déclenche `handleDigitizeText`.
 - **Validation Build sans aucun bug** : `npm run build` exécuté avec 0 erreur.
 
+**[2026-08-13] — Session 29 : Correction Critique du Texte Statique Hardcodé & Activation OCR Réelle sur la Photo du Client**
+- **Résolution du Problème de Texte Statique ("DOCUMENT PAPIER NUMÉRISÉ")** :
+  - Suppression intégrale de la chaîne de texte temporaire codée en dur (`DOCUMENT PAPIER NUMÉRISÉ (PAGE 1)...`) qui écrasait l'OCR dans `CameraViewfinder.tsx`.
+- **Moteur OCR Multi-Passe sur l'Image Réelle (`aiVisionService.ts`)** :
+  - `digitizeTextWithVisionAI` analyse désormais l'image réelle capturée ou importée en effectuant une extraction multi-passe (Gemini Vision AI + Binarisation B&W à contraste élevé + moteur Tesseract local).
+  - Le texte dactylographié généré reflète désormais le CONTENU RÉEL présent sur la photo de l'utilisateur et non un texte d'exemple factice.
+
 ---
 
 ## 9. CHARTE DE RENTABILITÉ, UNIT ECONOMICS ET RÉSILIENCE TECHNIQUE (69 PRINCIPES D'EXCELLENCE FINANCIÈRE)

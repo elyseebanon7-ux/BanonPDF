@@ -21,6 +21,34 @@ export interface DigitizeResult {
 }
 
 /**
+ * Converts image source (URL string or HTMLCanvasElement) to HTMLCanvasElement
+ */
+function imageSourceToCanvas(imageSource: string | HTMLCanvasElement): Promise<HTMLCanvasElement> {
+  return new Promise((resolve) => {
+    if (imageSource instanceof HTMLCanvasElement) {
+      resolve(imageSource);
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      canvas.width = img.naturalWidth || 1200;
+      canvas.height = img.naturalHeight || 1600;
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+      }
+      resolve(canvas);
+    };
+    img.onerror = () => {
+      resolve(canvas);
+    };
+    img.src = imageSource;
+  });
+}
+
+/**
  * Action 1: Améliorer le Scan (IA)
  * Conserve l'image/document d'origine et applique un traitement visuel 
  * (dépoussiérage, correction de perspective, contraste, suppression des ombres et blanchiment du fond).
@@ -28,82 +56,82 @@ export interface DigitizeResult {
 export async function enhanceScanWithAI(
   imageSource: string | HTMLCanvasElement
 ): Promise<{ enhancedImageUrl: string }> {
-  return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      canvas.width = img.naturalWidth || 1200;
-      canvas.height = img.naturalHeight || 1600;
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        // Apply Magic Color & Contrast Enhancement (shadow removal + white background)
-        const enhancedCanvas = applyFilterToCanvas(canvas, 'magic', 12, 18);
-        resolve({ enhancedImageUrl: enhancedCanvas.toDataURL('image/jpeg', 0.94) });
-      } else {
-        resolve({ enhancedImageUrl: typeof imageSource === 'string' ? imageSource : imageSource.toDataURL('image/jpeg', 0.94) });
-      }
-    };
-
-    img.onerror = () => {
-      if (imageSource instanceof HTMLCanvasElement) {
-        const enhancedCanvas = applyFilterToCanvas(imageSource, 'magic', 12, 18);
-        resolve({ enhancedImageUrl: enhancedCanvas.toDataURL('image/jpeg', 0.94) });
-      } else {
-        resolve({ enhancedImageUrl: imageSource });
-      }
-    };
-
-    if (typeof imageSource === 'string') {
-      img.src = imageSource;
-    } else {
-      img.src = imageSource.toDataURL('image/jpeg', 0.94);
-    }
-  });
+  const canvas = await imageSourceToCanvas(imageSource);
+  const enhancedCanvas = applyFilterToCanvas(canvas, 'magic', 12, 18);
+  return { enhancedImageUrl: enhancedCanvas.toDataURL('image/jpeg', 0.94) };
 }
 
 /**
  * Action 2: Numériser & Retaper le texte (IA) (OCR Multimodal + DTP Word)
- * Transcrit le texte (manuscrit ou dactylographié) en conservant la structure exacte (titres, paragraphes, listes)
+ * Extrait et transcrit le texte RÉEL de l'image (manuscrit ou dactylographié) 
  * et génère une mise en page ordinateur professionnelle (Word/PDF).
  */
 export async function digitizeTextWithVisionAI(
   imageSource: string | HTMLCanvasElement,
   existingText?: string
 ): Promise<DigitizeResult> {
-  // 1. Multimodal Vision OCR extraction
-  let extractedText = existingText || '';
-  if (!extractedText.trim()) {
+  let extractedText = '';
+
+  // 1. If user typed custom text manually, use it
+  if (
+    existingText &&
+    existingText.trim() &&
+    !existingText.includes('DOCUMENT PAPIER NUMÉRISÉ (PAGE') &&
+    !existingText.includes('TEXTE SÉLECTIONNÉ OU EXTRAIT')
+  ) {
+    extractedText = existingText.trim();
+  }
+
+  // 2. Otherwise, perform real OCR / Vision AI extraction on the actual photo
+  if (!extractedText) {
+    const srcCanvas = await imageSourceToCanvas(imageSource);
+    
+    // First try: OCR on high-contrast binarized canvas for optimal text detection
     try {
-      const ocrResult = await performOCR(imageSource, 'fra');
-      extractedText = ocrResult.text;
+      const binarizedCanvas = applyFilterToCanvas(srcCanvas, 'bw', 20, 25);
+      const ocrResult = await performOCR(binarizedCanvas, 'fra');
+      if (ocrResult.text && ocrResult.text.trim()) {
+        extractedText = ocrResult.text.trim();
+      }
     } catch (err) {
-      console.warn('Vision AI OCR Fallback:', err);
+      console.warn('Primary OCR pass failed:', err);
+    }
+
+    // Second try: OCR on magic color canvas if primary pass returned empty
+    if (!extractedText) {
+      try {
+        const magicCanvas = applyFilterToCanvas(srcCanvas, 'magic', 10, 15);
+        const ocrResultMagic = await performOCR(magicCanvas, 'fra');
+        if (ocrResultMagic.text && ocrResultMagic.text.trim()) {
+          extractedText = ocrResultMagic.text.trim();
+        }
+      } catch (err) {
+        console.warn('Secondary OCR pass failed:', err);
+      }
+    }
+
+    // Third try: Direct raw canvas OCR
+    if (!extractedText) {
+      try {
+        const ocrResultRaw = await performOCR(srcCanvas, 'fra');
+        if (ocrResultRaw.text && ocrResultRaw.text.trim()) {
+          extractedText = ocrResultRaw.text.trim();
+        }
+      } catch (err) {
+        console.warn('Raw OCR pass failed:', err);
+      }
     }
   }
 
-  if (!extractedText.trim()) {
-    extractedText = `DOCUMENT NUMÉRISÉ PAR VISION AI
+  // 3. Fallback message if no text was detected on the image
+  if (!extractedText) {
+    extractedText = `AUCUN TEXTE N'A POUVOIR ÊTRE DÉTECTÉ SUR CETTE PHOTO
 
-TITRE : RELEVÉ ET EXTRACTION DE TEXTE PAPIER
-
-1. Introduction & Contexte
-Le présent document a été scanné puis analysé par l'intelligence artificielle multimodale (Gemini 1.5 Pro Vision AI).
-Tout le texte manuscrit et dactylographié présent sur l'original papier a été entièrement transcrit sous forme de caractères informatiques propres.
-
-2. Structure et Données Extraintes
-• Statut de la numérisation : Succès (précision 99%)
-• Format d'export : DTP Word / PDF imprimable
-• Ombrages et altérations papier : Entièrement supprimés
-• Titres et paragraphes : Structurés automatiquement
-
-3. Conclusion & Signature
-Le contenu transcrit ci-dessus est désormais prêt pour édition, réutilisation documentaire ou impression de haute qualité.`;
+Veuillez vérifier que la photo est bien nette et cadrée sur un document texte.
+Vous pouvez également utiliser le bouton "Éditer / Saisir le texte" ci-dessous pour ajouter votre texte manuellement.`;
   }
 
-  // 2. Format HTML & Markdown (Computer Layout)
+  // 4. Format HTML & Markdown (Computer DTP Layout)
   const lines = extractedText.split('\n');
   let htmlLines: string[] = [];
   let mdLines: string[] = [];
@@ -131,7 +159,7 @@ Le contenu transcrit ci-dessus est désormais prêt pour édition, réutilisatio
   const fullHtml = `<div style="font-family: system-ui, -apple-system, sans-serif; background:#ffffff; color:#0f172a; padding:40px; border-radius:12px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); max-width:800px; margin:auto;">
     <header style="border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
       <div>
-        <h1 style="font-size: 22px; font-weight: 900; color: #0f172a; margin: 0;">BANON VISION AI — DOCUMENT DACTYLOGRAPHIÉ</h1>
+        <h1 style="font-size: 22px; font-weight: 900; color: #0f172a; margin: 0;">BANON VISION AI — RENDU DACTYLOGRAPHIÉ</h1>
         <p style="font-size: 12px; color: #64748b; margin: 4px 0 0 0;">Transcrit et mis en page automatiquement</p>
       </div>
       <span style="background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 9999px;">IA DTP WORD</span>
@@ -141,7 +169,7 @@ Le contenu transcrit ci-dessus est désormais prêt pour édition, réutilisatio
 
   const fullMarkdown = mdLines.join('\n');
 
-  // 3. Render high-resolution computer-typed A4 canvas ("mise en page ordinateur")
+  // 5. Render high-resolution computer-typed A4 canvas ("mise en page ordinateur")
   const dtpCanvasUrl = generateComputerDtpCanvas(extractedText);
 
   return {
@@ -154,6 +182,7 @@ Le contenu transcrit ci-dessus est désormais prêt pour édition, réutilisatio
 
 /**
  * Generates an A4 computer-typed canvas layout ("Mise en page ordinateur / Word")
+ * Rendering actual extracted text cleanly line by line
  */
 function generateComputerDtpCanvas(rawText: string): string {
   const canvas = document.createElement('canvas');
@@ -166,7 +195,7 @@ function generateComputerDtpCanvas(rawText: string): string {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, 1200, 1600);
 
-  // Subtle page header bar
+  // Top header line
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(90, 80, 1020, 4);
 
@@ -232,7 +261,7 @@ function generateComputerDtpCanvas(rawText: string): string {
   ctx.fillRect(90, 1530, 1020, 1.5);
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#94a3b8';
-  ctx.fillText(`Numérisé & Retapé par Banon Vision AI • ${new Date().toLocaleDateString('fr-FR')}`, 90, 1555);
+  ctx.fillText(`Transcrit & Retapé par Banon Vision AI • ${new Date().toLocaleDateString('fr-FR')}`, 90, 1555);
 
   return canvas.toDataURL('image/jpeg', 0.95);
 }
