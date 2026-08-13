@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-[#081526] text-slate-100 font-sans antialiased overflow-x-hidden selection:bg-cyan-600 selection:text-white;
+  }
+}
+
+/* Expert Elegant Deep Ocean Blue/Cyan Wave Theme */
+.app-expert-bg {
+  background: linear-gradient(165deg, #091728 0%, #0c2642 35%, #0a3550 70%, #051424 100%);
+  position: relative;
+}
+
+/* Translucent Glowing Ambient Ribbon Waves */
+.ambient-wave-top {
+  position: absolute;
+  top: -80px;
+  left: -20%;
+  width: 140%;
+  height: 380px;
+  background: radial-gradient(ellipse at center, rgba(6, 182, 212, 0.22) 0%, rgba(30, 64, 175, 0.15) 45%, transparent 75%);
+  filter: blur(50px);
+  pointer-events: none;
+  transform: rotate(-10deg);
+}
+
+.ambient-wave-bottom {
+  position: absolute;
+  bottom: -80px;
+  right: -20%;
+  width: 140%;
+  height: 400px;
+  background: radial-gradient(ellipse at center, rgba(20, 184, 166, 0.25) 0%, rgba(14, 165, 233, 0.18) 50%, transparent 80%);
+  filter: blur(55px);
+  pointer-events: none;
+  transform: rotate(8deg);
+}
+
+/* Subtle Geometric Mesh Overlay */
+.geo-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #081526;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e3a5f;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2b5282;
+}
+
+/* Custom Micro-Animations for Action Tiles */
+@keyframes tilePress {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.90); }
+  100% { transform: scale(1); }
+}
+
+.action-tile {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.action-tile:hover {
+  transform: translateY(-2px) scale(1.02);
+}
+
+.action-tile:active {
+  transform: scale(0.90) !important;
+  animation: tilePress 0.25s ease-out;
+}
+
+.action-tile-icon {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.action-tile:hover .action-tile-icon {
+  transform: scale(1.18) rotate(3deg);
+}
+
+.action-tile:active .action-tile-icon {
+  transform: scale(0.85);
+}
+
+

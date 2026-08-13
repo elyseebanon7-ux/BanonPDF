@@ -1,0 +1,11 @@
+# Global Codeowners for BanonPDF
+* @elyseebanon7-ux
+
+# Critical Security & Encryption Modules
+/src/services/securityService.ts @elyseebanon7-ux
+/src/services/omegaSecurityService.ts @elyseebanon7-ux
+/src/services/costGuardService.ts @elyseebanon7-ux
+/src/services/storageService.ts @elyseebanon7-ux
+
+# CI/CD Workflows
+/.github/workflows/ @elyseebanon7-ux

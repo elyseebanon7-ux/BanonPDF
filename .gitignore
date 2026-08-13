@@ -1,0 +1,58 @@
+# Environment variables & Secrets (CRITICAL SECURITY EXCLUSIONS)
+.env
+.env.*
+!.env.example
+*.env
+secrets.*
+credentials.json
+service-account*.json
+config.local.*
+config.production.local.*
+
+# Keys, Certificates & Credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.asc
+*.keystore
+*.jks
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build & Distribution outputs
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# Logs & Debugging
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor & OS files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary & Cache files
+.cache/
+.temp/
+tmp/
+.antigravity/
+.brain/
