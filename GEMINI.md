@@ -198,6 +198,15 @@
 - **Mise à Jour des Politiques Storage RLS (`storage.objects`)** : Ajout dans la migration SQL [`supabase/migrations/20260814113100_create_scans_table.sql`](file:///c:/BanonPDF/supabase/migrations/20260814113100_create_scans_table.sql) et dans [`supabase_schema.sql`](file:///c:/BanonPDF/supabase_schema.sql) des règles d'accès RLS `SELECT`, `INSERT`, et `UPDATE` pour le bucket `scanned-documents`.
 - **Logs Console de Débogage Structurés** : Ajout d'une séquence de logs clairs avec étapes 1/3 (Vérification bucket), 2/3 (Upload image avec taille KB et URL publique), et 3/3 (Insertion SQL dans la table `scans` avec ID de retour).
 
+**[2026-08-14] — Session 37 : Fixation des Classes Tailwind et Déploiement des Couleurs Pastel Actives/Inactives (`BottomNav.tsx`)**
+- **Conversion en Classes Directes Tailwind** : Remplacement des interpolations dynamiques de classes dans [`BottomNav.tsx`](file:///c:/BanonPDF/src/components/BottomNav.tsx) par des classes CSS Tailwind explicites pour assurer leur compilation et leur rendu garantis par Vercel.
+- **Rendu Pastel Permanent sur Mobile** :
+  - **Accueil** : Pilule et Icône Émeraude / Turquoise (`#00bba7`)
+  - **Fichiers** : Pilule et Icône Bleu de France (`#2563eb`)
+  - **Outils** : Pilule et Icône Violet Néon (`#8b5cf6`)
+  - **Moi** : Pilule et Icône Rose Corail (`#f43f5e`)
+- **Déploiement GitHub Vercel** : Commit `e9854b2` pushed avec succès sur `main`.
+
 ---
 
 ## 9. CHARTE DE RENTABILITÉ, UNIT ECONOMICS ET RÉSILIENCE TECHNIQUE (69 PRINCIPES D'EXCELLENCE FINANCIÈRE)
