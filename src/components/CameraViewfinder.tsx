@@ -25,8 +25,6 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
   const [showRenderChoiceModal, setShowRenderChoiceModal] = useState(false);
   const [pendingPages, setPendingPages] = useState<ScanPage[]>([]);
   const [lastCapturedToast, setLastCapturedToast] = useState<string | null>(null);
-  const [customTypedText, setCustomTypedText] = useState<string>('');
-  const [showTextEditor, setShowTextEditor] = useState<boolean>(false);
   const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
   const [activeActionType, setActiveActionType] = useState<'enhance' | 'digitize' | null>(null);
 
@@ -85,10 +83,9 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
     try {
       const digitizedPages: ScanPage[] = await Promise.all(
         pagesToProcess.map(async (page) => {
-          const textToUse = customTypedText.trim() || page.ocrText;
           const result = await digitizeTextWithVisionAI(
             page.originalImageUrl || page.processedImageUrl,
-            textToUse
+            page.ocrText
           );
 
           return {
@@ -722,57 +719,33 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
               </button>
 
               {/* Bouton 2 : Numériser & Retaper le texte (IA) */}
-              <div className="space-y-2">
-                <button
-                  onClick={handleDigitizeText}
-                  disabled={isProcessingAction}
-                  className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 to-teal-950/80 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/60 flex items-start gap-3.5 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md">
-                    {activeActionType === 'digitize' ? (
-                      <RefreshCw className="w-5 h-5 animate-spin text-slate-950" />
-                    ) : (
-                      <Type className="w-5 h-5 stroke-[2.5]" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black text-emerald-300">Numériser & Retaper le texte (IA)</h4>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">OCR + DTP</span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 leading-snug mt-1">
-                      Extraction OCR Multimodale Vision AI du texte (manuscrit/imprimé), conservation de la structure et rendu dactylographié "mise en page ordinateur".
-                    </p>
-                  </div>
-                </button>
-
-                {/* Text Editor Accordion for optional manual fine-tuning */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowTextEditor(!showTextEditor)}
-                    className="w-full flex items-center justify-between text-[11px] font-bold text-emerald-400 hover:text-emerald-300 cursor-pointer"
-                  >
-                    <span>✏️ Éditer / Ajuster le texte à retranscrire</span>
-                    <span className="text-[10px] text-slate-500">{showTextEditor ? 'Fermer ▲' : 'Ouvrir ▼'}</span>
-                  </button>
-
-                  {showTextEditor && (
-                    <textarea
-                      value={customTypedText}
-                      onChange={(e) => setCustomTypedText(e.target.value)}
-                      placeholder="Saisissez ou modifiez ici le texte présent sur la photo..."
-                      className="w-full h-24 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none"
-                    />
+              <button
+                onClick={handleDigitizeText}
+                disabled={isProcessingAction}
+                className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 to-teal-950/80 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/60 flex items-start gap-3.5 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md">
+                  {activeActionType === 'digitize' ? (
+                    <RefreshCw className="w-5 h-5 animate-spin text-slate-950" />
+                  ) : (
+                    <Type className="w-5 h-5 stroke-[2.5]" />
                   )}
                 </div>
-              </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-emerald-300">Numériser & Retaper le texte (IA)</h4>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">100% Auto Vision AI</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-snug mt-1">
+                    L'IA analyse automatiquement l'image capturée, extrait tout le texte (manuscrit ou imprimé) et génère une page dactylographiée propre sans filigrane.
+                  </p>
+                </div>
+              </button>
             </div>
 
             <button
               onClick={() => {
                 setShowRenderChoiceModal(false);
-                setShowTextEditor(false);
               }}
               disabled={isProcessingAction}
               className="w-full py-2.5 text-center text-xs font-bold text-slate-400 hover:text-white cursor-pointer"

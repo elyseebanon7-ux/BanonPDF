@@ -144,6 +144,17 @@
     1. **Bouton Principal** : *"Démarrer la Caméra en Direct"* (Déclenche le flux vidéo matériel de l'appareil photo).
     2. **Bouton Secondaire** : *"📁 Choisir une photo depuis vos dossiers"* (Dédié exclusivement à l'import de fichiers existants depuis le stockage).
 
+**[2026-08-14] — Session 31 : Suppression de l'Accordéon de Saisie Manuel & Navigation Basse Colorée (Retours Audio & Captures)**
+- **Transcription 100% Automatique par l'IA (`CameraViewfinder.tsx`)** :
+  - Suppression intégrale de l'accordéon *"Éditer / Saisir le texte de la photo"*. Cliquer sur *"Numériser & Retaper le texte (IA)"* déclenche désormais directement et à 100% l'extraction Vision AI automatique de Gemini sur l'image capturée sans demander la moindre saisie manuelle à l'utilisateur.
+- **Design Coloré et Distinct des 4 Onglets de Navigation Basse (`BottomNav.tsx`)** :
+  - Remplacement des icônes grises monochromes (`#b0b3b8`) par des thèmes de couleurs pastel éclatants pour les 4 onglets :
+    - **Accueil** : Émeraude / Turquoise (`#00bba7`)
+    - **Fichiers** : Bleu de France (`#2563eb`)
+    - **Outils** : Violet Néon (`#8b5cf6`)
+    - **Moi** : Rose Corail (`#f43f5e`)
+  - Ajout de puces de fond translucides colorées et de typographies à fort contraste aussi bien en Mode Clair qu'en Mode Sombre.
+
 ---
 
 ## 9. CHARTE DE RENTABILITÉ, UNIT ECONOMICS ET RÉSILIENCE TECHNIQUE (69 PRINCIPES D'EXCELLENCE FINANCIÈRE)
