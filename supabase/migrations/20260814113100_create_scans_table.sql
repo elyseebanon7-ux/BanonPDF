@@ -1,41 +1,7 @@
--- BANONPDF - CREATION DES TABLES SUPABASE & CONFIGURATION STORAGE (SCHEMA MAITRE)
+-- BANONPDF - SUPABASE MIGRATION: CREATE SCANS TABLE & SCANNED-DOCUMENTS STORAGE BUCKET POLICIES
+-- File: supabase/migrations/20260814113100_create_scans_table.sql
 
-CREATE TABLE IF NOT EXISTS public.folders (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    color TEXT NOT NULL DEFAULT '#3b82f6',
-    user_id TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.documents (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    type TEXT NOT NULL DEFAULT 'standard',
-    folder_id TEXT,
-    tags TEXT[] DEFAULT '{}',
-    page_count INTEGER NOT NULL DEFAULT 1,
-    ocr_full_text TEXT,
-    thumbnail_url TEXT,
-    pdf_size_estimate_bytes BIGINT DEFAULT 0,
-    is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
-    is_encrypted BOOLEAN NOT NULL DEFAULT FALSE,
-    pages_json JSONB DEFAULT '[]'::jsonb,
-    user_id TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.audit_logs (
-    id TEXT PRIMARY KEY,
-    action TEXT NOT NULL,
-    details TEXT,
-    severity TEXT NOT NULL DEFAULT 'info',
-    user_id TEXT,
-    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- SCANS TABLE (PDF Scanner App - Modes OCR & Clean)
+-- 1. Create table public.scans with mode CHECK constraint
 CREATE TABLE IF NOT EXISTS public.scans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -49,8 +15,10 @@ CREATE TABLE IF NOT EXISTS public.scans (
     user_id UUID
 );
 
+-- 2. Index on created_at column for chronological ordering optimization
 CREATE INDEX IF NOT EXISTS idx_scans_created_at ON public.scans (created_at DESC);
 
+-- 3. Reusable trigger function for automatic updated_at timestamp updates
 CREATE OR REPLACE FUNCTION public.update_scans_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -65,8 +33,10 @@ CREATE TRIGGER set_scans_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.update_scans_updated_at_column();
 
+-- 4. Enable Row Level Security (RLS) on public.scans table
 ALTER TABLE public.scans ENABLE ROW LEVEL SECURITY;
 
+-- 5. Temporary permissive RLS policy for development phase on scans table
 DROP POLICY IF EXISTS "Allow public access for dev" ON public.scans;
 CREATE POLICY "Allow public access for dev"
     ON public.scans
@@ -74,11 +44,12 @@ CREATE POLICY "Allow public access for dev"
     USING (true)
     WITH CHECK (true);
 
--- SUPABASE STORAGE BUCKET & POLICIES ('scanned-documents')
+-- 6. Supabase Storage Bucket Initialization for 'scanned-documents'
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('scanned-documents', 'scanned-documents', true, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp'])
 ON CONFLICT (id) DO UPDATE SET public = true;
 
+-- 7. Storage Policies for 'scanned-documents' bucket (SELECT, INSERT, UPDATE)
 DROP POLICY IF EXISTS "Public Read Access for scanned-documents" ON storage.objects;
 CREATE POLICY "Public Read Access for scanned-documents"
 ON storage.objects FOR SELECT

@@ -20,7 +20,6 @@ config.production.local.*
 
 # Dependencies
 node_modules/
-.pnpm-store/
 
 # Build & Distribution outputs
 dist/
@@ -44,15 +43,11 @@ lerna-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 
 # Temporary & Cache files
 .cache/
 .temp/
 tmp/
+scratch/
 .antigravity/
 .brain/

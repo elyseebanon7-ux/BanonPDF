@@ -3,6 +3,7 @@ import { Zap, ZapOff, Clock, Sparkles, X, Camera as CameraIcon, Plus, FileText, 
 import type { QuadCorners, ScanPage } from '../types';
 import { getDefaultCorners, applyFilterToCanvas } from '../services/imageProcessor';
 import { enhanceScanWithAI, digitizeTextWithVisionAI } from '../services/aiVisionService';
+import { saveScanRecordToSupabase } from '../services/supabaseClient';
 
 interface CameraViewfinderProps {
   onCaptureCompleted: (pages: ScanPage[]) => void;
@@ -29,7 +30,34 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
   const [activeActionType, setActiveActionType] = useState<'enhance' | 'digitize' | null>(null);
 
   /**
-   * Action 1 : Améliorer le Scan (IA)
+   * Universal Supabase Digitize Handler
+   * Saves scan result (mode 'ocr' or 'clean') into Supabase Storage & 'scans' table
+   */
+  const handleDigitize = async (mode: 'ocr' | 'clean', pages: ScanPage[], ocrText?: string) => {
+    if (!pages || pages.length === 0) return;
+    const firstPage = pages[0];
+    try {
+      const result = await saveScanRecordToSupabase({
+        mode,
+        ocrText: mode === 'ocr' ? (ocrText || firstPage.ocrText || null) : null,
+        originalImageUrl: firstPage.originalImageUrl,
+        processedImageUrl: firstPage.processedImageUrl,
+        pageCount: pages.length,
+      });
+
+      if (result.success) {
+        setLastCapturedToast(`✓ Scan enregistré dans Supabase (${mode.toUpperCase()}) !`);
+        setTimeout(() => setLastCapturedToast(null), 3500);
+      } else {
+        console.warn('[Supabase Digitize Save Notice]', result.error);
+      }
+    } catch (err) {
+      console.warn('[Supabase Digitize Exception]', err);
+    }
+  };
+
+  /**
+   * Action 1 : Améliorer le Scan (IA - Mode 'clean')
    * Conserve l'image/document d'origine et applique un traitement visuel
    * (dépoussiérage, correction de la perspective, contraste, suppression des ombres et blanchiment du fond).
    */
@@ -55,6 +83,9 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
         })
       );
 
+      // Save to Supabase scans table (Mode 'clean')
+      await handleDigitize('clean', enhancedPages);
+
       setShowRenderChoiceModal(false);
       setIsProcessingAction(false);
       setActiveActionType(null);
@@ -68,7 +99,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
   };
 
   /**
-   * Action 2 : Numériser & Retaper le texte (IA) (OCR Multimodal + Mise en page DTP Word)
+   * Action 2 : Numériser & Retaper le texte (IA - Mode 'ocr') (OCR Multimodal + Mise en page DTP Word)
    * Extraction et retranscription intégrale du contenu (texte manuscrit ou imprimé)
    * via modèle OCR multimodal Vision AI / Gemini 1.5 Pro Vision, avec conversion
    * en document propre et éditable ("mise en page ordinateur").
@@ -81,12 +112,17 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
     setActiveActionType('digitize');
 
     try {
+      let combinedOcrText = '';
       const digitizedPages: ScanPage[] = await Promise.all(
         pagesToProcess.map(async (page) => {
           const result = await digitizeTextWithVisionAI(
             page.originalImageUrl || page.processedImageUrl,
             page.ocrText
           );
+
+          if (result.text) {
+            combinedOcrText += (combinedOcrText ? '\n\n' : '') + result.text;
+          }
 
           return {
             ...page,
@@ -97,6 +133,9 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
           };
         })
       );
+
+      // Save to Supabase scans table (Mode 'ocr')
+      await handleDigitize('ocr', digitizedPages, combinedOcrText);
 
       setShowRenderChoiceModal(false);
       setIsProcessingAction(false);

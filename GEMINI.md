@@ -162,6 +162,42 @@
 - **Carte d'Intégration & Protocole MCP (`MoiTab.tsx` & `mcp.json`)** :
   - Intégration dans l'onglet **Moi** de la carte de statut "Base de données Supabase Cloud" indiquant le statut de connexion en direct, la référence projet `yubfmflrgfflxoenumdq`, et l'activation du protocole MCP Supabase.
 
+**[2026-08-14] — Session 33 : Configuration Supabase SSR, Fichiers Helpers, Variables d'Environnement et Agent Skills**
+- **Installation des Packages `@supabase/supabase-js` et `@supabase/ssr`** : Packages installés avec succès dans le projet.
+- **Mise à Jour de `.env.local`** : Ajout des variables d'environnement `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_URL`, et `VITE_SUPABASE_ANON_KEY` pointant vers `https://yqmecaoepcvibbafejul.supabase.co`.
+- **Ajout des Fichiers Helpers Supabase & Page Exemple** :
+  - [`utils/supabase/server.ts`](file:///c:/BanonPDF/utils/supabase/server.ts)
+  - [`utils/supabase/client.ts`](file:///c:/BanonPDF/utils/supabase/client.ts)
+  - [`utils/supabase/middleware.ts`](file:///c:/BanonPDF/utils/supabase/middleware.ts)
+  - [`page.tsx`](file:///c:/BanonPDF/page.tsx)
+  - Mise à jour du fallback d'URL dans [`src/services/supabaseClient.ts`](file:///c:/BanonPDF/src/services/supabaseClient.ts).
+- **Installation des Agent Skills Supabase (`npx skills add supabase/agent-skills`)** : Compétences `supabase` et `supabase-postgres-best-practices` ajoutées dans le répertoire `.agents/skills`.
+- **Validation du Build** : Compilation `tsc -b && vite build` exécutée avec 0 erreur.
+
+**[2026-08-14] — Session 34 : Architecture PostgreSQL & Migration Supabase pour la Table `scans`**
+- **Création du Fichier de Migration Normalisé (`supabase/migrations/20260814113100_create_scans_table.sql`)** :
+  - **Structure `scans`** : `id` (UUID PK default `gen_random_uuid()`), `created_at` (TIMESTAMPTZ NOT NULL default `now()`), `updated_at` (TIMESTAMPTZ NOT NULL default `now()`), `title` (TEXT nullable), `mode` (TEXT NOT NULL `CHECK (mode IN ('ocr', 'clean'))`), `ocr_text` (TEXT nullable), `image_url` (TEXT NOT NULL), `processed_image_url` (TEXT nullable), `page_count` (INTEGER default 1), `user_id` (UUID nullable).
+  - **Indexation** : `idx_scans_created_at` sur `created_at DESC` pour l'optimisation des tris chronologiques.
+  - **Mise à jour Automatique `updated_at`** : Fonction Trigger PL/pgSQL `update_scans_updated_at_column()`.
+  - **Sécurité RLS** : Activation de Row-Level Security (`ALTER TABLE public.scans ENABLE ROW LEVEL SECURITY;`) avec politique permissive temporaire de développement.
+- **Mise à Jour du Schéma Global (`supabase_schema.sql`)** : Ajout de la définition complète de la table `scans` dans le schéma maître.
+- **Requête de Vérification `information_schema`** : Script d'inspection SQL fourni pour valider la conformité des types, contraintes CHECK et valeurs par défaut.
+
+**[2026-08-14] — Session 35 : Connexion du Traitement `handleDigitize` à la Table `scans` & Supabase Storage**
+- **Bucket Storage Supabase (`scans`)** : Création automatique et vérification du bucket public `scans` dans Supabase Storage pour accueillir les images originales (`raw_*.jpg`) et traitées (`processed_*.jpg`).
+- **Conversion & Upload `uploadImageDataUrlToSupabaseStorage` (`src/services/supabaseClient.ts`)** : Conversion automatique des images base64 DataURL en blobs binaire JPEG et envoi vers le bucket Supabase avec récupération des URLs publiques.
+- **Connexion `handleDigitize` / `handleEnhanceScan` / `handleDigitizeText` (`CameraViewfinder.tsx`)** :
+  - **Mode 'clean'** : Sauvegarde automatique de l'image nettoyée avec `mode: 'clean'`, `ocr_text: null`, `image_url` et `processed_image_url`.
+  - **Mode 'ocr'** : Sauvegarde automatique du texte extrait par Vision AI avec `mode: 'ocr'`, `ocr_text: combinedText`, `image_url` et `processed_image_url`.
+  - **Titre automatique** : Génération d'un titre horodaté par défaut (`Scan DD/MM/YYYY HH:MM`) si aucun titre n'est spécifié.
+- **Résilience et Gestion d'Erreurs Non-Bloquante** : En cas d'indisponibilité réseau ou d'erreur de stockage, l'application capture l'exception, avertit l'utilisateur sans aucun plantage de l'interface.
+- **Validation du Build** : Build TypeScript et Vite validé à 100% sans avertissement bloquant.
+
+**[2026-08-14] — Session 36 : Alignement du Bucket Storage `scanned-documents`, Politiques RLS & Logs de Débogage Étape par Étape**
+- **Correction Incohérence Bucket (`scanned-documents`)** : Remplacement de toutes les références du bucket `scans` par la constante `SCANS_BUCKET_NAME = 'scanned-documents'` dans [`src/services/supabaseClient.ts`](file:///c:/BanonPDF/src/services/supabaseClient.ts).
+- **Mise à Jour des Politiques Storage RLS (`storage.objects`)** : Ajout dans la migration SQL [`supabase/migrations/20260814113100_create_scans_table.sql`](file:///c:/BanonPDF/supabase/migrations/20260814113100_create_scans_table.sql) et dans [`supabase_schema.sql`](file:///c:/BanonPDF/supabase_schema.sql) des règles d'accès RLS `SELECT`, `INSERT`, et `UPDATE` pour le bucket `scanned-documents`.
+- **Logs Console de Débogage Structurés** : Ajout d'une séquence de logs clairs avec étapes 1/3 (Vérification bucket), 2/3 (Upload image avec taille KB et URL publique), et 3/3 (Insertion SQL dans la table `scans` avec ID de retour).
+
 ---
 
 ## 9. CHARTE DE RENTABILITÉ, UNIT ECONOMICS ET RÉSILIENCE TECHNIQUE (69 PRINCIPES D'EXCELLENCE FINANCIÈRE)
