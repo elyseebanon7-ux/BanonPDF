@@ -207,6 +207,43 @@ export const MoiTab: React.FC<MoiTabProps> = ({
             <ChevronRight className="w-5 h-5 stroke-[3] shrink-0" />
           </div>
 
+          {/* Supabase Database & Cloud Integration Card */}
+          <div className={`${isLight ? 'bg-white border-emerald-200/90 shadow-sm' : 'bg-slate-900 border-emerald-500/30 shadow-xl'} border p-4.5 rounded-3xl space-y-3`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
+                  <Cloud className="w-4 h-4 stroke-[2.5]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className={`font-extrabold text-xs ${isLight ? 'text-slate-900' : 'text-white'}`}>Base de données Supabase Cloud</h4>
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                      Connecté
+                    </span>
+                  </div>
+                  <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'} font-mono`}>
+                    Ref: yubfmflrgfflxoenumdq
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className={`p-3 rounded-2xl ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'} border text-[11px] space-y-1.5`}>
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>URL Serveur:</span>
+                <span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-bold truncate max-w-[180px]">yubfmflrgfflxoenumdq.supabase.co</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Services activés:</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">Database, Auth, Storage, Functions</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Protocole MCP:</span>
+                <span className="font-bold text-cyan-600 dark:text-cyan-400">Actif dans mcp.json</span>
+              </div>
+            </div>
+          </div>
+
           {/* Executive Financial Dashboard & Cost Guard Button */}
           <div
             onClick={() => setShowFinancialDashboard(true)}

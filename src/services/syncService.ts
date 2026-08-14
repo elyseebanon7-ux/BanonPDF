@@ -1,4 +1,6 @@
 import type { CloudSyncStatus } from '../types';
+import { testSupabaseConnection, syncDocumentToSupabase } from './supabaseClient';
+import { loadDocuments } from './storageService';
 
 let currentSyncStatus: CloudSyncStatus = {
   isOnline: navigator.onLine,
@@ -40,16 +42,26 @@ export function queueOfflineChange() {
   }
 }
 
-export function triggerAutoSync() {
+export async function triggerAutoSync() {
   if (currentSyncStatus.isSyncing || !currentSyncStatus.isOnline) return;
 
   currentSyncStatus.isSyncing = true;
   notifyListeners();
 
-  setTimeout(() => {
+  try {
+    const conn = await testSupabaseConnection();
+    if (conn.isConnected) {
+      const docs = loadDocuments();
+      for (const doc of docs) {
+        await syncDocumentToSupabase(doc);
+      }
+    }
+  } catch (e) {
+    console.warn('[AutoSync Warning]', e);
+  } finally {
     currentSyncStatus.isSyncing = false;
     currentSyncStatus.pendingSyncCount = 0;
     currentSyncStatus.lastSyncedAt = Date.now();
     notifyListeners();
-  }, 1200);
+  }
 }

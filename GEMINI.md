@@ -155,6 +155,13 @@
     - **Moi** : Rose Corail (`#f43f5e`)
   - Ajout de puces de fond translucides colorées et de typographies à fort contraste aussi bien en Mode Clair qu'en Mode Sombre.
 
+**[2026-08-14] — Session 32 : Intégration Complète de Supabase Cloud Database & Configuration MCP (`mcp.json`)**
+- **Intégration du SDK Supabase (`@supabase/supabase-js`)** :
+  - Installation et configuration du client Supabase (`src/services/supabaseClient.ts`) relié au projet Supabase `yubfmflrgfflxoenumdq` (`https://yubfmflrgfflxoenumdq.supabase.co`).
+  - Configuration de la synchronisation bidirectionnelle automatique des documents et des dossiers locaux vers la base de données PostgreSQL Supabase avec support hors-ligne et réhydratation.
+- **Carte d'Intégration & Protocole MCP (`MoiTab.tsx` & `mcp.json`)** :
+  - Intégration dans l'onglet **Moi** de la carte de statut "Base de données Supabase Cloud" indiquant le statut de connexion en direct, la référence projet `yubfmflrgfflxoenumdq`, et l'activation du protocole MCP Supabase.
+
 ---
 
 ## 9. CHARTE DE RENTABILITÉ, UNIT ECONOMICS ET RÉSILIENCE TECHNIQUE (69 PRINCIPES D'EXCELLENCE FINANCIÈRE)
