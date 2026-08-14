@@ -1,9 +1,5 @@
--- ====================================================================
--- BANONPDF - SUPABASE DATABASE SCHEMA MIGRATION (100% FAIL-SAFE)
--- Project Ref: yubfmflrgfflxoenumdq
--- ====================================================================
+-- BANONPDF - CREATION DES TABLES SUPABASE (3 TABLES UNIQUEMENT)
 
--- 1. Table des dossiers (folders)
 CREATE TABLE IF NOT EXISTS public.folders (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -12,7 +8,6 @@ CREATE TABLE IF NOT EXISTS public.folders (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 2. Table des documents (documents)
 CREATE TABLE IF NOT EXISTS public.documents (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -31,7 +26,6 @@ CREATE TABLE IF NOT EXISTS public.documents (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. Table du registre d'audit (audit_logs)
 CREATE TABLE IF NOT EXISTS public.audit_logs (
     id TEXT PRIMARY KEY,
     action TEXT NOT NULL,
@@ -40,18 +34,3 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     user_id TEXT,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
--- Activer la sécurité RLS
-ALTER TABLE public.folders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-
--- Supprimer les anciennes politiques si elles existent
-DROP POLICY IF EXISTS "Public Folders Policy" ON public.folders;
-DROP POLICY IF EXISTS "Public Documents Policy" ON public.documents;
-DROP POLICY IF EXISTS "Public Audit Logs Policy" ON public.audit_logs;
-
--- Créer les politiques d'accès universel
-CREATE POLICY "Public Folders Policy" ON public.folders FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Documents Policy" ON public.documents FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Audit Logs Policy" ON public.audit_logs FOR ALL USING (true) WITH CHECK (true);
