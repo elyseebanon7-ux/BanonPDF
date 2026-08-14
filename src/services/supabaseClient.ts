@@ -72,6 +72,29 @@ export async function testSupabaseConnection(): Promise<CloudDatabaseStatus> {
 }
 
 /**
+ * Check if required database tables ('documents', 'folders', 'audit_logs') exist in Supabase
+ */
+export async function checkTablesExist(): Promise<{ documents: boolean; folders: boolean; audit_logs: boolean }> {
+  const result = { documents: false, folders: false, audit_logs: false };
+  if (!supabase) return result;
+
+  try {
+    const { error: docErr } = await supabase.from('documents').select('id').limit(1);
+    result.documents = !docErr;
+
+    const { error: foldErr } = await supabase.from('folders').select('id').limit(1);
+    result.folders = !foldErr;
+
+    const { error: logErr } = await supabase.from('audit_logs').select('id').limit(1);
+    result.audit_logs = !logErr;
+  } catch {
+    // ignore
+  }
+
+  return result;
+}
+
+/**
  * Cloud Sync Helper: Upload local document metadata to Supabase 'documents' table
  */
 export async function syncDocumentToSupabase(doc: DocumentItem): Promise<boolean> {
