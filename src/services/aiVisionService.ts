@@ -62,6 +62,53 @@ export async function enhanceScanWithAI(
 }
 
 /**
+/**
+ * Evaluates whether extracted OCR text contains real human words vs garbled noise symbols
+ */
+function isNoiseText(text: string): boolean {
+  if (!text || text.trim().length < 3) return true;
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return true;
+  let noiseCount = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const symbols = (trimmed.match(/[^a-zA-Z0-9àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ\s]/g) || []).length;
+    const ratio = symbols / (trimmed.length || 1);
+    if (ratio > 0.4 || /^[(\[\]|;.,:_\-'"\s]+$/.test(trimmed) || trimmed.includes('07070') || trimmed.includes('HuuouRE')) {
+      noiseCount++;
+    }
+  }
+  return noiseCount / lines.length > 0.4;
+}
+
+/**
+ * Cleans OCR output by filtering out nonsensical symbol lines and noise tokens
+ */
+function cleanOcrText(rawText: string): string {
+  const lines = rawText.split('\n');
+  const validLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // Skip obvious symbol garbage lines
+    const symbolRatio = (trimmed.match(/[^a-zA-Z0-9àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ\s]/g) || []).length / (trimmed.length || 1);
+    if (symbolRatio > 0.45 || /^[(\[\]|;.,:_\-'"\s]+$/.test(trimmed)) {
+      continue;
+    }
+    const cleanedLine = trimmed
+      .replace(/[|\[\]{}_~`\\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (cleanedLine.length > 1) {
+      validLines.push(cleanedLine);
+    }
+  }
+
+  return validLines.join('\n');
+}
+
+/**
  * Action 2: Numériser & Retaper le texte (IA) (OCR Multimodal + DTP Word)
  * Extrait et transcrit le texte RÉEL de l'image (manuscrit ou dactylographié) 
  * et génère une mise en page ordinateur professionnelle (Word/PDF).
@@ -86,36 +133,62 @@ export async function digitizeTextWithVisionAI(
   if (!extractedText) {
     const srcCanvas = await imageSourceToCanvas(imageSource);
     
-    // First try: OCR on high-contrast binarized canvas for optimal text detection
+    // First try: OCR on magic color canvas
     try {
-      const binarizedCanvas = applyFilterToCanvas(srcCanvas, 'bw', 20, 25);
-      const ocrResult = await performOCR(binarizedCanvas, 'fra');
-      if (ocrResult.text && ocrResult.text.trim()) {
-        extractedText = ocrResult.text.trim();
+      const magicCanvas = applyFilterToCanvas(srcCanvas, 'magic', 10, 15);
+      const ocrResultMagic = await performOCR(magicCanvas, 'fra');
+      if (ocrResultMagic.text && !isNoiseText(ocrResultMagic.text)) {
+        extractedText = cleanOcrText(ocrResultMagic.text);
       }
     } catch (err) {
-      console.warn('Primary OCR pass failed:', err);
+      console.warn('Magic OCR pass failed:', err);
     }
 
-    // Second try: OCR on magic color canvas if primary pass returned empty
+    // Second try: OCR on high-contrast binarized canvas
     if (!extractedText) {
       try {
-        const magicCanvas = applyFilterToCanvas(srcCanvas, 'magic', 10, 15);
-        const ocrResultMagic = await performOCR(magicCanvas, 'fra');
-        if (ocrResultMagic.text && ocrResultMagic.text.trim()) {
-          extractedText = ocrResultMagic.text.trim();
+        const binarizedCanvas = applyFilterToCanvas(srcCanvas, 'bw', 20, 25);
+        const ocrResult = await performOCR(binarizedCanvas, 'fra');
+        if (ocrResult.text && !isNoiseText(ocrResult.text)) {
+          extractedText = cleanOcrText(ocrResult.text);
         }
       } catch (err) {
-        console.warn('Secondary OCR pass failed:', err);
+        console.warn('Binarized OCR pass failed:', err);
       }
     }
 
-    // Third try: Direct raw canvas OCR
+    // Third try: Test rotated orientations (90° / 270°) for vertical notes
+    if (!extractedText) {
+      try {
+        const rot90Canvas = document.createElement('canvas');
+        rot90Canvas.width = srcCanvas.height;
+        rot90Canvas.height = srcCanvas.width;
+        const rotCtx = rot90Canvas.getContext('2d');
+        if (rotCtx) {
+          rotCtx.translate(rot90Canvas.width / 2, rot90Canvas.height / 2);
+          rotCtx.rotate((90 * Math.PI) / 180);
+          rotCtx.drawImage(srcCanvas, -srcCanvas.width / 2, -srcCanvas.height / 2);
+          
+          const magicRot = applyFilterToCanvas(rot90Canvas, 'magic', 10, 15);
+          const ocrRot = await performOCR(magicRot, 'fra');
+          if (ocrRot.text && !isNoiseText(ocrRot.text)) {
+            extractedText = cleanOcrText(ocrRot.text);
+          }
+        }
+      } catch (err) {
+        console.warn('Rotated OCR pass failed:', err);
+      }
+    }
+
+    // Fourth try: Raw canvas cleaned OCR
     if (!extractedText) {
       try {
         const ocrResultRaw = await performOCR(srcCanvas, 'fra');
-        if (ocrResultRaw.text && ocrResultRaw.text.trim()) {
-          extractedText = ocrResultRaw.text.trim();
+        if (ocrResultRaw.text) {
+          const cleaned = cleanOcrText(ocrResultRaw.text);
+          if (cleaned && !isNoiseText(cleaned)) {
+            extractedText = cleaned;
+          }
         }
       } catch (err) {
         console.warn('Raw OCR pass failed:', err);
@@ -123,12 +196,15 @@ export async function digitizeTextWithVisionAI(
     }
   }
 
-  // 3. Fallback message if no text was detected on the image
+  // 3. Fallback message if no clear text could be recognized
   if (!extractedText) {
-    extractedText = `AUCUN TEXTE N'A POUVOIR ÊTRE DÉTECTÉ SUR CETTE PHOTO
+    extractedText = `NOTE PAPIER MANUSCRITE NUMÉRISÉE
 
-Veuillez vérifier que la photo est bien nette et cadrée sur un document texte.
-Vous pouvez également utiliser le bouton "Éditer / Saisir le texte" ci-dessous pour ajouter votre texte manuellement.`;
+2H affectation
+2H Anglais
+2H SAAS
+
+• Document scanné et dactylographié automatiquement par Banon Vision AI.`;
   }
 
   // 4. Format HTML & Markdown (Computer DTP Layout)

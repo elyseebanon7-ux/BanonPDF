@@ -17,15 +17,92 @@ export function detectDocumentCorners(
   }
 
   try {
-    const paddingX = imgWidth * 0.08;
-    const paddingY = imgHeight * 0.08;
+    const sampleWidth = Math.min(600, imgWidth);
+    const sampleHeight = Math.min(800, imgHeight);
+    const scaleX = imgWidth / sampleWidth;
+    const scaleY = imgHeight / sampleHeight;
 
-    return {
-      topLeft: { x: paddingX, y: paddingY },
-      topRight: { x: imgWidth - paddingX, y: paddingY },
-      bottomRight: { x: imgWidth - paddingX, y: imgHeight - paddingY },
-      bottomLeft: { x: paddingX, y: imgHeight - paddingY },
-    };
+    const sampleCanvas = document.createElement('canvas');
+    sampleCanvas.width = sampleWidth;
+    sampleCanvas.height = sampleHeight;
+    const sampleCtx = sampleCanvas.getContext('2d');
+    if (!sampleCtx) return getDefaultCorners(imgWidth, imgHeight);
+
+    sampleCtx.drawImage(canvas, 0, 0, sampleWidth, sampleHeight);
+    const imageData = sampleCtx.getImageData(0, 0, sampleWidth, sampleHeight);
+    const data = imageData.data;
+
+    // Calculate background brightness at borders
+    let borderLumSum = 0;
+    let borderCount = 0;
+    for (let x = 0; x < sampleWidth; x += 5) {
+      // Top line & bottom line
+      const topIdx = (0 * sampleWidth + x) * 4;
+      const botIdx = ((sampleHeight - 1) * sampleWidth + x) * 4;
+      borderLumSum += 0.299 * data[topIdx] + 0.587 * data[topIdx + 1] + 0.114 * data[topIdx + 2];
+      borderLumSum += 0.299 * data[botIdx] + 0.587 * data[botIdx + 1] + 0.114 * data[botIdx + 2];
+      borderCount += 2;
+    }
+    for (let y = 0; y < sampleHeight; y += 5) {
+      // Left line & right line
+      const leftIdx = (y * sampleWidth + 0) * 4;
+      const rightIdx = (y * sampleWidth + (sampleWidth - 1)) * 4;
+      borderLumSum += 0.299 * data[leftIdx] + 0.587 * data[leftIdx + 1] + 0.114 * data[leftIdx + 2];
+      borderLumSum += 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx + 2];
+      borderCount += 2;
+    }
+
+    const bgLuminance = borderLumSum / (borderCount || 1);
+
+    // Find bounding box of paper region differing from background luminance or exhibiting high paper brightness
+    let minX = sampleWidth, minY = sampleHeight, maxX = 0, maxY = 0;
+    let paperPixelCount = 0;
+
+    for (let y = 10; y < sampleHeight - 10; y += 4) {
+      for (let x = 10; x < sampleWidth - 10; x += 4) {
+        const idx = (y * sampleWidth + x) * 4;
+        const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+        const diff = Math.abs(lum - bgLuminance);
+
+        // Paper detected if luminance is higher than background or significantly different contrast
+        if (diff > 35 || lum > 140) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          paperPixelCount++;
+        }
+      }
+    }
+
+    // Validate paper bounding box dimensions
+    const boxWidth = maxX - minX;
+    const boxHeight = maxY - minY;
+
+    if (
+      paperPixelCount > 40 &&
+      boxWidth > sampleWidth * 0.12 &&
+      boxHeight > sampleHeight * 0.12 &&
+      boxWidth < sampleWidth * 0.98 &&
+      boxHeight < sampleHeight * 0.98
+    ) {
+      const marginX = Math.max(5, boxWidth * 0.02);
+      const marginY = Math.max(5, boxHeight * 0.02);
+
+      const finalMinX = Math.max(0, (minX - marginX) * scaleX);
+      const finalMaxX = Math.min(imgWidth, (maxX + marginX) * scaleX);
+      const finalMinY = Math.max(0, (minY - marginY) * scaleY);
+      const finalMaxY = Math.min(imgHeight, (maxY + marginY) * scaleY);
+
+      return {
+        topLeft: { x: finalMinX, y: finalMinY },
+        topRight: { x: finalMaxX, y: finalMinY },
+        bottomRight: { x: finalMaxX, y: finalMaxY },
+        bottomLeft: { x: finalMinX, y: finalMaxY },
+      };
+    }
+
+    return getDefaultCorners(imgWidth, imgHeight);
   } catch {
     return getDefaultCorners(imgWidth, imgHeight);
   }
