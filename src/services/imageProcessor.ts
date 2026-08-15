@@ -286,3 +286,28 @@ export function rotateCanvas(canvas: HTMLCanvasElement, degrees: number): HTMLCa
 
   return newCanvas;
 }
+
+/**
+ * PARCOURS 1 : DOCUMENT ORIGINAL — SCANNER PRO
+ * Pipeline complet CamScanner Pro :
+ * photo -> détection des coins -> correction de perspective (warp) -> nettoyage des ombres -> blanchiment du papier & netteté du texte -> rendu de scan haute définition.
+ */
+export function processScanOriginalPro(
+  srcCanvas: HTMLCanvasElement,
+  customCorners?: QuadCorners
+): HTMLCanvasElement {
+  const width = srcCanvas.width || 1200;
+  const height = srcCanvas.height || 1600;
+
+  // 1. Détection automatique des 4 coins du document
+  const corners = customCorners || detectDocumentCorners(srcCanvas, width, height);
+
+  // 2. Correction de perspective et redressement de page (Homography Warp)
+  const warpedCanvas = warpPerspective(srcCanvas, corners, 1200, 1600);
+
+  // 3. Traitement visuel Pro : dépoussiérage, suppression des ombres, blanchiment du fond, netteté des détails & encres manuscrites
+  const finalScanCanvas = applyFilterToCanvas(warpedCanvas, 'magic', 14, 20);
+
+  return finalScanCanvas;
+}
+

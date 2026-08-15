@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Zap, ZapOff, Clock, Sparkles, X, Camera as CameraIcon, Plus, FileText, CheckCircle2, Image as ImageIcon, Grid, Layers, ArrowLeft, RefreshCw, Wand2, Type } from 'lucide-react';
+import { Zap, ZapOff, Clock, Sparkles, X, Camera as CameraIcon, Plus, FileText, CheckCircle2, Image as ImageIcon, Grid, Layers, ArrowLeft, RefreshCw } from 'lucide-react';
 import type { QuadCorners, ScanPage } from '../types';
-import { getDefaultCorners, applyFilterToCanvas } from '../services/imageProcessor';
-import { enhanceScanWithAI, digitizeTextWithVisionAI } from '../services/aiVisionService';
+import { getDefaultCorners, applyFilterToCanvas, processScanOriginalPro } from '../services/imageProcessor';
+import { digitizeTextWithVisionAI } from '../services/aiVisionService';
 import { saveScanRecordToSupabase } from '../services/supabaseClient';
 
 interface CameraViewfinderProps {
@@ -57,9 +57,9 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
   };
 
   /**
-   * Action 1 : Améliorer le Scan (IA - Mode 'clean')
-   * Conserve l'image/document d'origine et applique un traitement visuel
-   * (dépoussiérage, correction de la perspective, contraste, suppression des ombres et blanchiment du fond).
+   * PARCOURS 1 : DOCUMENT ORIGINAL — SCANNER PRO
+   * Transforme la photo en véritable rendu numérisé professionnel :
+   * Détection coins -> correction de perspective (warp) -> nettoyage des ombres -> blanchiment du papier -> netteté du texte.
    */
   const handleEnhanceScan = async () => {
     const pagesToProcess = pendingPages.length > 0 ? pendingPages : scannedPages;
@@ -71,11 +71,25 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
     try {
       const enhancedPages: ScanPage[] = await Promise.all(
         pagesToProcess.map(async (page) => {
-          const res = await enhanceScanWithAI(page.originalImageUrl || page.processedImageUrl);
+          const rawUrl = page.originalImageUrl || page.processedImageUrl;
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = rawUrl;
+          await new Promise((r) => { img.onload = r; img.onerror = r; });
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || 1200;
+          canvas.height = img.naturalHeight || 1600;
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.drawImage(img, 0, 0);
+
+          const proCanvas = processScanOriginalPro(canvas, page.corners);
+          const enhancedUrl = proCanvas.toDataURL('image/jpeg', 0.94);
+
           return {
             ...page,
-            processedImageUrl: res.enhancedImageUrl,
-            thumbnailUrl: res.enhancedImageUrl,
+            processedImageUrl: enhancedUrl,
+            thumbnailUrl: enhancedUrl,
             filter: 'magic',
             brightness: 12,
             contrast: 18,
@@ -702,14 +716,14 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
 
       {/* Post-Capture 2-Option Choice Dialog Modal */}
       {showRenderChoiceModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-white">
-            <div className="text-center space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto mb-2">
+            <div className="text-center space-y-1.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto mb-2 shadow-lg">
                 <Sparkles className="w-6 h-6 stroke-[2.5]" />
               </div>
-              <h3 className="text-lg font-black tracking-tight">Post-Scan Traitement IA</h3>
-              <p className="text-xs text-slate-400">Sélectionnez le traitement d'intelligence artificielle souhaité :</p>
+              <h3 className="text-xl font-black tracking-tight text-white">Rendu de Numérisation</h3>
+              <p className="text-xs font-medium text-slate-400">Comment souhaitez-vous traiter ce document ?</p>
             </div>
 
             {/* Prévisualisation immédiate du document capturé */}
@@ -731,52 +745,50 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
               </div>
             )}
 
-            {/* Les 2 Boutons d'Action Clairs sous la Prévisualisation */}
-            <div className="space-y-3">
-              {/* Bouton 1 : Améliorer le Scan (IA) */}
+            {/* Les 2 Seules Options Autorisées */}
+            <div className="space-y-3.5">
+              {/* Option 1 : Document Original — Scanner Pro */}
               <button
                 onClick={handleEnhanceScan}
                 disabled={isProcessingAction}
-                className="w-full p-4 rounded-2xl bg-slate-800 hover:bg-slate-700/90 border border-slate-700 flex items-start gap-3.5 text-left transition-all active:scale-95 group cursor-pointer disabled:opacity-50"
+                className="w-full p-4 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 flex items-start gap-3.5 text-left transition-all active:scale-95 group cursor-pointer disabled:opacity-50"
               >
-                <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/40 text-teal-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
                   {activeActionType === 'enhance' ? (
-                    <RefreshCw className="w-5 h-5 animate-spin text-teal-400" />
+                    <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
                   ) : (
-                    <Wand2 className="w-5 h-5 stroke-[2.5]" />
+                    <FileText className="w-5 h-5 stroke-[2.5]" />
                   )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black text-white group-hover:text-teal-300">Améliorer le Scan (IA)</h4>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-teal-500/20 text-teal-300 border border-teal-500/40">Visuel IA</span>
+                    <h4 className="text-xs font-black text-white group-hover:text-blue-300">📄 Document Original — Scanner Pro</h4>
                   </div>
-                  <p className="text-[11px] text-slate-400 leading-snug mt-1">
-                    Conserve l'image/document d'origine et applique un traitement visuel (dépoussiérage, correction de perspective, contraste, suppression d'ombres, blanchiment du fond).
+                  <p className="text-[11px] text-slate-300 leading-snug mt-1 font-normal">
+                    Nettoie et transforme automatiquement votre photo en document numérisé professionnel.
                   </p>
                 </div>
               </button>
 
-              {/* Bouton 2 : Numériser & Retaper le texte (IA) */}
+              {/* Option 2 : Saisie IA Pro — Document éditable */}
               <button
                 onClick={handleDigitizeText}
                 disabled={isProcessingAction}
-                className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 to-teal-950/80 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/60 flex items-start gap-3.5 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50"
+                className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/70 flex items-start gap-3.5 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
               >
                 <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md">
                   {activeActionType === 'digitize' ? (
                     <RefreshCw className="w-5 h-5 animate-spin text-slate-950" />
                   ) : (
-                    <Type className="w-5 h-5 stroke-[2.5]" />
+                    <Sparkles className="w-5 h-5 stroke-[2.5]" />
                   )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black text-emerald-300">Numériser & Retaper le texte (IA)</h4>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">100% Auto Vision AI</span>
+                    <h4 className="text-xs font-black text-emerald-300">✨ Saisie IA Pro — Document éditable</h4>
                   </div>
-                  <p className="text-[11px] text-slate-300 leading-snug mt-1">
-                    L'IA analyse automatiquement l'image capturée, extrait tout le texte (manuscrit ou imprimé) et génère une page dactylographiée propre sans filigrane.
+                  <p className="text-[11px] text-emerald-100/90 leading-snug mt-1 font-normal">
+                    Extrait automatiquement le contenu de la photo et le transforme en document éditable grâce à l'IA.
                   </p>
                 </div>
               </button>
@@ -787,7 +799,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
                 setShowRenderChoiceModal(false);
               }}
               disabled={isProcessingAction}
-              className="w-full py-2.5 text-center text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
+              className="w-full py-2.5 text-center text-xs font-bold text-slate-400 hover:text-white cursor-pointer transition-colors"
             >
               Annuler
             </button>

@@ -161,38 +161,95 @@ export async function digitizeTextWithVisionAI(
     }
   }
 
-  // 4. Format HTML & Markdown (Computer DTP Layout)
+  // 4. Format HTML & Markdown (Computer DTP Layout with Table Support)
   const lines = extractedText.split('\n');
   let htmlLines: string[] = [];
   let mdLines: string[] = [];
+  let inTable = false;
+  let tableHeaderProcessed = false;
 
   lines.forEach((line) => {
     const trimmed = line.trim();
     if (!trimmed) {
+      if (inTable) {
+        htmlLines.push('</tbody></table></div>');
+        inTable = false;
+        tableHeaderProcessed = false;
+      }
       htmlLines.push('<br/>');
       mdLines.push('');
       return;
     }
 
+    // Detect Table Row (Pipe separated)
+    if (trimmed.includes('|')) {
+      const cells = trimmed.split('|').map((c) => c.trim()).filter((c, idx, arr) => !(idx === 0 && c === '') && !(idx === arr.length - 1 && c === ''));
+      if (cells.length > 1) {
+        if (!inTable) {
+          inTable = true;
+          tableHeaderProcessed = false;
+          htmlLines.push('<div style="overflow-x:auto; margin:16px 0;"><table style="width:100%; border-collapse:collapse; font-size:13px; color:#334155; border:1px solid #cbd5e1;">');
+        }
+
+        // Table header separator line (e.g. |---|---|)
+        if (cells.every((c) => /^[-:]+$/.test(c))) {
+          tableHeaderProcessed = true;
+          return;
+        }
+
+        if (!tableHeaderProcessed) {
+          htmlLines.push('<thead><tr style="background:#f1f5f9; font-weight:700; color:#0f172a;">');
+          cells.forEach((cell) => {
+            htmlLines.push(`<th style="border:1px solid #cbd5e1; padding:8px 12px; text-align:left;">${cell}</th>`);
+          });
+          htmlLines.push('</tr></thead><tbody>');
+          tableHeaderProcessed = true;
+        } else {
+          htmlLines.push('<tr style="border-bottom:1px solid #e2e8f0;">');
+          cells.forEach((cell) => {
+            htmlLines.push(`<td style="border:1px solid #cbd5e1; padding:8px 12px;">${cell}</td>`);
+          });
+          htmlLines.push('</tr>');
+        }
+
+        mdLines.push(`| ${cells.join(' | ')} |`);
+        return;
+      }
+    }
+
+    if (inTable) {
+      htmlLines.push('</tbody></table></div>');
+      inTable = false;
+      tableHeaderProcessed = false;
+    }
+
+    // Headers & List Detection
     if (trimmed.toUpperCase() === trimmed && trimmed.length < 60 && !trimmed.startsWith('•')) {
-      htmlLines.push(`<h2 style="font-size:18px; font-weight:800; color:#0f172a; margin-top:16px; margin-bottom:8px;">${trimmed}</h2>`);
+      htmlLines.push(`<h2 style="font-size:18px; font-weight:800; color:#0f172a; margin-top:20px; margin-bottom:10px; border-bottom:1px solid #e2e8f0; padding-bottom:4px;">${trimmed}</h2>`);
       mdLines.push(`## ${trimmed}`);
     } else if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
-      htmlLines.push(`<li style="font-size:14px; color:#334155; margin-left:16px; margin-bottom:4px;">${trimmed.replace(/^[•-]\s*/, '')}</li>`);
+      htmlLines.push(`<li style="font-size:14px; color:#334155; margin-left:20px; margin-bottom:6px;">${trimmed.replace(/^[•-]\s*/, '')}</li>`);
       mdLines.push(`* ${trimmed.replace(/^[•-]\s*/, '')}`);
+    } else if (/^\d+[\.\)]\s/.test(trimmed)) {
+      htmlLines.push(`<p style="font-size:14px; font-weight:700; color:#0f172a; margin-top:10px; margin-bottom:4px;">${trimmed}</p>`);
+      mdLines.push(trimmed);
     } else {
       htmlLines.push(`<p style="font-size:14px; line-height:1.6; color:#334155; margin-bottom:8px;">${trimmed}</p>`);
       mdLines.push(trimmed);
     }
   });
 
-  const fullHtml = `<div style="font-family: system-ui, -apple-system, sans-serif; background:#ffffff; color:#0f172a; padding:40px; border-radius:12px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); max-width:800px; margin:auto;">
+  if (inTable) {
+    htmlLines.push('</tbody></table></div>');
+  }
+
+  const fullHtml = `<div style="font-family: system-ui, -apple-system, sans-serif; background:#ffffff; color:#0f172a; padding:40px; border-radius:12px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); max-width:850px; margin:auto;">
     <header style="border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
       <div>
         <h1 style="font-size: 22px; font-weight: 900; color: #0f172a; margin: 0;">BANON VISION AI — RENDU DACTYLOGRAPHIÉ</h1>
-        <p style="font-size: 12px; color: #64748b; margin: 4px 0 0 0;">Transcrit et mis en page automatiquement</p>
+        <p style="font-size: 12px; color: #64748b; margin: 4px 0 0 0;">Document éditable extrait et restructuré</p>
       </div>
-      <span style="background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 9999px;">IA DTP WORD</span>
+      <span style="background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 9999px;">SAISIE IA PRO</span>
     </header>
     <main>${htmlLines.join('')}</main>
   </div>`;
@@ -212,7 +269,7 @@ export async function digitizeTextWithVisionAI(
 
 /**
  * Generates an A4 computer-typed canvas layout ("Mise en page ordinateur / Word")
- * Rendering actual extracted text cleanly line by line
+ * Rendering actual extracted text cleanly line by line with Table Grid Support
  */
 function generateComputerDtpCanvas(rawText: string): string {
   const canvas = document.createElement('canvas');
@@ -231,22 +288,49 @@ function generateComputerDtpCanvas(rawText: string): string {
 
   ctx.font = 'bold 16px sans-serif';
   ctx.fillStyle = '#64748b';
-  ctx.fillText('BANON AI — RENDU DACTYLOGRAPHIÉ DTP (TYPE WORD)', 90, 68);
+  ctx.fillText('BANON AI — SAISIE IA PRO (DOCUMENT ÉDITABLE TYPE WORD)', 90, 68);
 
   const marginX = 90;
   const maxWidth = 1020;
-  let currentY = 130;
+  let currentY = 140;
 
   const lines = rawText.split('\n');
 
   lines.forEach((line) => {
     const trimmed = line.trim();
     if (!trimmed) {
-      currentY += 16;
+      currentY += 18;
       return;
     }
 
-    if (currentY > 1500) return; // Prevent overflow beyond single A4 page render
+    if (currentY > 1480) return; // Prevent overflow beyond single A4 page render
+
+    // Render Table Row Grid
+    if (trimmed.includes('|')) {
+      const cells = trimmed.split('|').map((c) => c.trim()).filter((c, idx, arr) => !(idx === 0 && c === '') && !(idx === arr.length - 1 && c === ''));
+      if (cells.length > 1 && !cells.every((c) => /^[-:]+$/.test(c))) {
+        const cellWidth = maxWidth / cells.length;
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(marginX, currentY, maxWidth, 42);
+
+        cells.forEach((cell, i) => {
+          const cellX = marginX + i * cellWidth;
+          if (i > 0) {
+            ctx.beginPath();
+            ctx.moveTo(cellX, currentY);
+            ctx.lineTo(cellX, currentY + 42);
+            ctx.stroke();
+          }
+          ctx.font = 'bold 18px sans-serif';
+          ctx.fillStyle = '#0f172a';
+          ctx.fillText(cell.substring(0, 22), cellX + 12, currentY + 28);
+        });
+
+        currentY += 46;
+        return;
+      }
+    }
 
     const isHeader = (trimmed.toUpperCase() === trimmed && trimmed.length < 60 && !trimmed.startsWith('•')) || trimmed.startsWith('#');
     const isBullet = trimmed.startsWith('•') || trimmed.startsWith('-');
@@ -254,7 +338,7 @@ function generateComputerDtpCanvas(rawText: string): string {
     if (isHeader) {
       ctx.font = 'bold 26px sans-serif';
       ctx.fillStyle = '#0f172a';
-      currentY += 10;
+      currentY += 12;
     } else if (isBullet) {
       ctx.font = 'bold 20px sans-serif';
       ctx.fillStyle = '#0284c7';
@@ -288,10 +372,11 @@ function generateComputerDtpCanvas(rawText: string): string {
 
   // Footer line
   ctx.fillStyle = '#cbd5e1';
-  ctx.fillRect(90, 1530, 1020, 1.5);
+  ctx.fillRect(90, 1520, 1020, 1.5);
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#94a3b8';
-  ctx.fillText(`Transcrit & Retapé par Banon Vision AI • ${new Date().toLocaleDateString('fr-FR')}`, 90, 1555);
+  ctx.fillText(`Document Éditable Généré par Banon Vision AI • ${new Date().toLocaleDateString('fr-FR')}`, 90, 1548);
 
   return canvas.toDataURL('image/jpeg', 0.95);
 }
+
