@@ -415,7 +415,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
       const updated = [...scannedPages, newPage];
       setScannedPages(updated);
 
-      setLastCapturedToast(`✓ Page ${pageNum} ajoutée & optimisée ! (Prenez d'autres photos pour le PDF)`);
+      setLastCapturedToast(`✓ Page ${pageNum} ajoutée & optimisée !`);
       setTimeout(() => setLastCapturedToast(null), 3000);
 
       try {
@@ -436,11 +436,41 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
         setShowRenderChoiceModal(true);
       }
     };
+    img.onerror = () => {
+      console.warn('Image processing fallback triggered');
+      const pageNum = scannedPages.length + 1;
+      const fallbackPage: ScanPage = {
+        id: `page-${Date.now()}-${pageNum}`,
+        originalImageUrl: rawSrc,
+        processedImageUrl: rawSrc,
+        thumbnailUrl: rawSrc,
+        corners: getDefaultCorners(1200, 1600),
+        rotation: 0,
+        filter: 'magic',
+        brightness: 0,
+        contrast: 0,
+        ocrText: '',
+        ocrLanguage: 'fra',
+        ocrConfidence: 90,
+        createdAt: Date.now(),
+      };
+      setScannedPages([...scannedPages, fallbackPage]);
+      if (scanMode === 'simple') {
+        setPendingPages([fallbackPage]);
+        setShowRenderChoiceModal(true);
+      }
+    };
   };
 
   const handleTriggerCapture = () => {
     if (!streamActive) {
-      startCameraStream();
+      if (cameraInputRef.current) {
+        cameraInputRef.current.click();
+      } else if (fileInputRef.current) {
+        fileInputRef.current.click();
+      } else {
+        executeCapture();
+      }
       return;
     }
     if (timerSeconds > 0) {
