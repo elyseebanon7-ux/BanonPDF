@@ -590,39 +590,47 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
         <div className="flex items-center justify-center gap-6 overflow-x-auto text-xs font-extrabold scrollbar-none py-1">
           <button
             onClick={() => setScanMode('signature')}
-            className={`transition-colors whitespace-nowrap ${
-              scanMode === 'signature' ? 'text-emerald-400 font-black border-b-2 border-emerald-400 pb-0.5' : 'text-slate-400 hover:text-white'
+            className={`transition-all whitespace-nowrap px-2.5 py-1 rounded-xl flex items-center gap-1 cursor-pointer ${
+              scanMode === 'signature' 
+                ? 'bg-purple-500/30 text-purple-300 font-black border border-purple-400 shadow-md shadow-purple-500/20 scale-105' 
+                : 'text-purple-400/70 hover:text-purple-300 bg-purple-500/10 border border-purple-500/20'
             }`}
           >
-            Signature
+            <span>Signature</span>
           </button>
 
           <button
             onClick={() => setScanMode('simple')}
-            className={`transition-colors whitespace-nowrap ${
-              scanMode === 'simple' ? 'text-emerald-400 font-black border-b-2 border-emerald-400 pb-0.5' : 'text-slate-400 hover:text-white'
+            className={`transition-all whitespace-nowrap px-2.5 py-1 rounded-xl flex items-center gap-1 cursor-pointer ${
+              scanMode === 'simple' 
+                ? 'bg-blue-500/30 text-blue-300 font-black border border-blue-400 shadow-md shadow-blue-500/20 scale-105' 
+                : 'text-blue-400/70 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20'
             }`}
           >
-            Simple
+            <span>Simple</span>
           </button>
 
           <button
             onClick={() => setScanMode('lot')}
-            className={`transition-colors whitespace-nowrap flex items-center gap-1 ${
-              scanMode === 'lot' ? 'text-emerald-400 font-black border-b-2 border-emerald-400 pb-0.5' : 'text-slate-400 hover:text-white'
+            className={`transition-all whitespace-nowrap px-2.5 py-1 rounded-xl flex items-center gap-1 cursor-pointer ${
+              scanMode === 'lot' 
+                ? 'bg-emerald-500/30 text-emerald-300 font-black border border-emerald-400 shadow-md shadow-emerald-500/20 scale-105' 
+                : 'text-emerald-400/70 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20'
             }`}
           >
             <span>Lot (Multi-Pages)</span>
-            <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.2 rounded-full">PDF</span>
+            <span className="text-[9px] bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 rounded-full font-black">PDF</span>
           </button>
 
           <button
             onClick={() => setScanMode('gomme')}
-            className={`transition-colors whitespace-nowrap ${
-              scanMode === 'gomme' ? 'text-emerald-400 font-black border-b-2 border-emerald-400 pb-0.5' : 'text-slate-400 hover:text-white'
+            className={`transition-all whitespace-nowrap px-2.5 py-1 rounded-xl flex items-center gap-1 cursor-pointer ${
+              scanMode === 'gomme' 
+                ? 'bg-amber-500/30 text-amber-300 font-black border border-amber-400 shadow-md shadow-amber-500/20 scale-105' 
+                : 'text-amber-400/70 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20'
             }`}
           >
-            Gomme intelligente
+            <span>Gomme intelligente</span>
           </button>
         </div>
 
@@ -690,22 +698,22 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
 
         </div>
 
-        <div className="flex items-center justify-around text-[11px] font-bold text-slate-400 pt-1 border-t border-slate-900">
+        <div className="flex items-center justify-around text-[11px] font-bold text-slate-300 pt-2 border-t border-slate-900 px-2">
           <button
             onClick={() => {}}
-            className="flex items-center gap-1.5 hover:text-slate-200"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30 transition-all active:scale-95 cursor-pointer"
           >
-            <Grid className="w-3.5 h-3.5 text-slate-400" />
+            <Grid className="w-3.5 h-3.5 text-purple-400" />
             <span>Toutes les fonctionnalités</span>
           </button>
 
-          <label className="flex items-center gap-1.5 hover:text-slate-200 cursor-pointer">
-            <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+          <label className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 transition-all active:scale-95 cursor-pointer">
+            <ImageIcon className="w-3.5 h-3.5 text-cyan-400" />
             <span>Importer des images</span>
             <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
           </label>
 
-          <label className="flex items-center gap-1.5 hover:text-slate-200 cursor-pointer">
+          <label className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 transition-all active:scale-95 cursor-pointer">
             <FileText className="w-3.5 h-3.5 text-amber-400" />
             <span>Importer des fichiers</span>
             <input type="file" accept=".pdf,.doc,.docx" onChange={handleFileUpload} className="hidden" />
