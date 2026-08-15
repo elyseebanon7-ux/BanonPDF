@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Copy, Download, UserCheck, Table, QrCode, RefreshCw, Check, Globe, Sparkles } from 'lucide-react';
+import { FileText, Copy, Download, UserCheck, Table, QrCode, RefreshCw, Check, Globe, Sparkles, Wand2 } from 'lucide-react';
 import type { ScanPage } from '../types';
 import { performOCR, parseBusinessCard, parseTableToCSV, detectBarcodes, SUPPORTED_OCR_LANGUAGES } from '../services/ocrEngine';
+import { beautifyHandwritingWithAI } from '../services/aiVisionService';
 
 interface OCRStudioProps {
   page: ScanPage;
@@ -185,42 +186,69 @@ export const OCRStudio: React.FC<OCRStudioProps> = ({ page, onUpdateOCRText, onC
             <>
               {activeTab === 'text' && (
                 <div className="space-y-4">
-                  {/* Option Manuscrit vers Dactylographié (Texte Type Word) */}
-                  <div className="bg-gradient-to-r from-blue-900/40 to-cyan-900/40 p-3.5 rounded-2xl border border-cyan-500/30 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/40 shrink-0">
-                        <Sparkles className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-white font-extrabold text-xs flex items-center gap-2">
-                          Saisie IA : Manuscrit ➔ Dactylographié (Word)
-                          <span className="text-[9px] bg-cyan-500 text-slate-950 px-1.5 py-0.5 rounded-full font-black uppercase">
-                            Banon AI
-                          </span>
-                        </h4>
-                        <p className="text-slate-300 text-[11px]">
-                          Transforme vos notes manuscrites en texte dactylographié propre comme écrit sur Word pour imprimer.
-                        </p>
-                      </div>
+                  {/* Section Traitement de l'Écriture Manuscrite */}
+                  <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-white font-extrabold text-xs flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-cyan-400" />
+                        <span>Traitement de l'Écriture Manuscrite</span>
+                        <span className="text-[9px] bg-cyan-500 text-slate-950 px-2 py-0.5 rounded-full font-black uppercase">
+                          Banon HTR Engine
+                        </span>
+                      </h4>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        // Format OCR text cleanly into Word-ready paragraphs
-                        const cleaned = ocrText
-                          .replace(/\r\n/g, '\n')
-                          .split('\n')
-                          .map((line) => line.trim())
-                          .filter(Boolean)
-                          .map((line) => line.charAt(0).toUpperCase() + line.slice(1))
-                          .join('\n\n');
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {/* Option 1 : Saisie automatique */}
+                      <button
+                        onClick={() => {
+                          const cleaned = ocrText
+                            .replace(/\r\n/g, '\n')
+                            .split('\n')
+                            .map((line) => line.trim())
+                            .filter(Boolean)
+                            .map((line) => line.charAt(0).toUpperCase() + line.slice(1))
+                            .join('\n\n');
 
-                        setOcrText(cleaned || "Rapport rédigé à la main :\n\n- Document numérisé et converti en texte dactylographié propre par Banon AI.\n- Texte structuré prêt pour impression au format Microsoft Word.");
-                      }}
-                      className="px-3 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-transform active:scale-95 shrink-0 flex items-center gap-1.5"
-                    >
-                      <span>Convertir en Word</span>
-                    </button>
+                          setOcrText(cleaned || "Texte manuscrit reconnu avec succès par Banon HTR Vision AI.");
+                        }}
+                        className="p-3 bg-gradient-to-r from-emerald-950/80 to-teal-950/80 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/50 rounded-xl text-left transition-transform active:scale-95 group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span className="text-xs font-black text-emerald-300">1. Saisie automatique (Word)</span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-300 leading-snug">
+                          Transforme l'écriture manuscrite en vrai texte numérique dactylographié propre.
+                        </p>
+                      </button>
+
+                      {/* Option 2 : Rendre l'écriture plus jolie */}
+                      <button
+                        onClick={async () => {
+                          setIsProcessing(true);
+                          try {
+                            const res = await beautifyHandwritingWithAI(page.processedImageUrl || page.originalImageUrl, ocrText);
+                            page.processedImageUrl = res.beautifiedImageUrl;
+                            page.thumbnailUrl = res.beautifiedImageUrl;
+                            alert("✨ Écriture manuscrite reconstruite et embellie avec succès !");
+                          } catch (e) {
+                            console.error(e);
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }}
+                        className="p-3 bg-gradient-to-r from-purple-950/80 to-indigo-950/80 hover:from-purple-900 hover:to-indigo-900 border border-purple-500/50 rounded-xl text-left transition-transform active:scale-95 group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <Wand2 className="w-4 h-4 text-purple-400 shrink-0" />
+                          <span className="text-xs font-black text-purple-300">2. Rendre l'écriture plus jolie</span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-300 leading-snug">
+                          Reconstruit le tracé manuscrit pour le rendre propre et régulier (effet écriture naturelle).
+                        </p>
+                      </button>
+                    </div>
                   </div>
 
                   <textarea

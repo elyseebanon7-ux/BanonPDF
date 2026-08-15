@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Zap, ZapOff, Clock, Sparkles, X, Camera as CameraIcon, Plus, FileText, CheckCircle2, Image as ImageIcon, Grid, Layers, ArrowLeft, RefreshCw } from 'lucide-react';
 import type { QuadCorners, ScanPage } from '../types';
 import { getDefaultCorners, applyFilterToCanvas, processScanOriginalPro } from '../services/imageProcessor';
-import { digitizeTextWithVisionAI } from '../services/aiVisionService';
+import { digitizeTextWithVisionAI, beautifyHandwritingWithAI } from '../services/aiVisionService';
 import { saveScanRecordToSupabase } from '../services/supabaseClient';
 
 interface CameraViewfinderProps {
@@ -27,7 +27,7 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
   const [pendingPages, setPendingPages] = useState<ScanPage[]>([]);
   const [lastCapturedToast, setLastCapturedToast] = useState<string | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
-  const [activeActionType, setActiveActionType] = useState<'enhance' | 'digitize' | null>(null);
+  const [activeActionType, setActiveActionType] = useState<'enhance' | 'digitize' | 'beautify' | null>(null);
 
   /**
    * Universal Supabase Digitize Handler
@@ -157,6 +157,56 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
       onCaptureCompleted(digitizedPages);
     } catch (err) {
       console.error('Digitize text error:', err);
+      setIsProcessingAction(false);
+      setActiveActionType(null);
+      onCaptureCompleted(pagesToProcess);
+    }
+  };
+
+  /**
+   * Action 3 : Rendre l'écriture plus jolie (Reconstruction Calligraphique Manuscrite)
+   * Reconstruit l'écriture manuscrite pour la rendre plus propre, régulière et lisible,
+   * tout en conservant une apparence d'écriture manuscrite humaine naturelle (calligraphie).
+   */
+  const handleBeautifyHandwriting = async () => {
+    const pagesToProcess = pendingPages.length > 0 ? pendingPages : scannedPages;
+    if (pagesToProcess.length === 0) return;
+
+    setIsProcessingAction(true);
+    setActiveActionType('beautify');
+
+    try {
+      let combinedOcrText = '';
+      const beautifiedPages: ScanPage[] = await Promise.all(
+        pagesToProcess.map(async (page) => {
+          const result = await beautifyHandwritingWithAI(
+            page.originalImageUrl || page.processedImageUrl,
+            page.ocrText
+          );
+
+          if (result.text) {
+            combinedOcrText += (combinedOcrText ? '\n\n' : '') + result.text;
+          }
+
+          return {
+            ...page,
+            ocrText: result.text,
+            processedImageUrl: result.beautifiedImageUrl,
+            thumbnailUrl: result.beautifiedImageUrl,
+            filter: 'magic',
+          };
+        })
+      );
+
+      // Save to Supabase scans table (Mode 'clean')
+      await handleDigitize('clean', beautifiedPages, combinedOcrText);
+
+      setShowRenderChoiceModal(false);
+      setIsProcessingAction(false);
+      setActiveActionType(null);
+      onCaptureCompleted(beautifiedPages);
+    } catch (err) {
+      console.error('Beautify handwriting error:', err);
       setIsProcessingAction(false);
       setActiveActionType(null);
       onCaptureCompleted(pagesToProcess);
@@ -753,50 +803,75 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
               </div>
             )}
 
-            {/* Les 2 Seules Options Autorisées */}
-            <div className="space-y-3.5">
-              {/* Option 1 : Document Original — Scanner Pro */}
+            {/* Options Post-Scan d'Écriture Manuscrite & Traitement Pro */}
+            <div className="space-y-3">
+              {/* Option 1 : Saisie automatique (HTR -> Texte Word) */}
+              <button
+                onClick={handleDigitizeText}
+                disabled={isProcessingAction}
+                className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/70 flex items-start gap-3 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md font-bold">
+                  {activeActionType === 'digitize' ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 stroke-[2.5]" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-emerald-300">📝 Saisie automatique (Texte Word)</h4>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">HTR Digital</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-100/90 leading-snug mt-0.5 font-normal">
+                    Reconnaît l'écriture manuscrite et la transforme en vrai texte numérique propre, éditable et sélectionnable (comme Word).
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2 : Rendre l'écriture plus jolie (Reconstruction Calligraphique Manuscrite) */}
+              <button
+                onClick={handleBeautifyHandwriting}
+                disabled={isProcessingAction}
+                className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/90 to-indigo-950/90 hover:from-purple-900 hover:to-indigo-900 border border-purple-500/70 flex items-start gap-3 text-left transition-all active:scale-95 group shadow-lg shadow-purple-950/50 cursor-pointer disabled:opacity-50"
+              >
+                <div className="w-9 h-9 rounded-xl bg-purple-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md font-bold">
+                  {activeActionType === 'beautify' ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 stroke-[2.5]" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-purple-300">✨ Rendre l'écriture plus jolie</h4>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/30 text-purple-200 border border-purple-400/50">Calligraphie IA</span>
+                  </div>
+                  <p className="text-[11px] text-purple-100/90 leading-snug mt-0.5 font-normal">
+                    Reconstruit votre écriture manuscrite pour la rendre propre, régulière et lisible tout en conservant son aspect naturel.
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 3 : Document Original — Scanner Pro */}
               <button
                 onClick={handleEnhanceScan}
                 disabled={isProcessingAction}
-                className="w-full p-4 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 flex items-start gap-3.5 text-left transition-all active:scale-95 group cursor-pointer disabled:opacity-50"
+                className="w-full p-3.5 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 flex items-start gap-3 text-left transition-all active:scale-95 group cursor-pointer disabled:opacity-50"
               >
-                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
                   {activeActionType === 'enhance' ? (
-                    <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
+                    <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
                   ) : (
-                    <FileText className="w-5 h-5 stroke-[2.5]" />
+                    <FileText className="w-4 h-4 stroke-[2.5]" />
                   )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-black text-white group-hover:text-blue-300">📄 Document Original — Scanner Pro</h4>
                   </div>
-                  <p className="text-[11px] text-slate-300 leading-snug mt-1 font-normal">
-                    Nettoie et transforme automatiquement votre photo en document numérisé professionnel.
-                  </p>
-                </div>
-              </button>
-
-              {/* Option 2 : Saisie IA Pro — Document éditable */}
-              <button
-                onClick={handleDigitizeText}
-                disabled={isProcessingAction}
-                className="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/70 flex items-start gap-3.5 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
-              >
-                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md">
-                  {activeActionType === 'digitize' ? (
-                    <RefreshCw className="w-5 h-5 animate-spin text-slate-950" />
-                  ) : (
-                    <Sparkles className="w-5 h-5 stroke-[2.5]" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black text-emerald-300">✨ Saisie IA Pro — Document éditable</h4>
-                  </div>
-                  <p className="text-[11px] text-emerald-100/90 leading-snug mt-1 font-normal">
-                    Extrait automatiquement le contenu de la photo et le transforme en document éditable grâce à l'IA.
+                  <p className="text-[11px] text-slate-300 leading-snug mt-0.5 font-normal">
+                    Nettoie et transforme automatiquement votre photo en document numérisé (Magic Color Pro).
                   </p>
                 </div>
               </button>
