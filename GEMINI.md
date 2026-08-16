@@ -244,6 +244,14 @@
 - **Mise à Jour Antigravity (GEMINI.md)** : Journal de bord mis à jour avec toutes les sessions précédentes (Sessions 35–37) et la présente session 38. Contexte de mémoire persistante synchronisé pour garantir la continuité du projet.
 - **État du Projet** : Build stable, 0 erreur TypeScript, pipeline CI/CD vert ✅.
 
+**[2026-08-16] — Session 39 : Correction Critique Post-Capture & Moteur OCR IA Réel (4 Bugs Résolus)**
+- **Bug 1 RÉSOLU — Option "Garder le scan tel quel" ajoutée (`CameraViewfinder.tsx`)** : Ajout du handler `handleKeepOriginal()` et d'un bouton "📸 Garder le scan tel quel" **en première position** dans la modale post-capture, avec badge "RECOMMANDÉ" bien visible. L'utilisateur peut désormais conserver sa photo numérisée telle quelle, sans aucun traitement IA supplémentaire.
+- **Bug 2 RÉSOLU — Modale post-capture dans TOUS les modes de scan (`CameraViewfinder.tsx`)** : Suppression de la condition `if (scanMode === 'simple')` restrictive. La modale de choix s'ouvre maintenant systématiquement après chaque capture, quel que soit le mode actif (Simple, Lot, Signature, Gomme intelligente).
+- **Bug 3 RÉSOLU — Texte hardcodé supprimé + Timeout OCR 1500ms → 25000ms (`aiVisionService.ts`)** : Suppression intégrale du texte factice codé en dur (`"2H affectation / 2H Anglais / 2H SAAS"`). Le timeout Tesseract est passé de 1,5s à 25s (durée réaliste pour une vraie image mobile). Ajout d'une double tentative OCR (fra+eng → puis eng seul en fallback). Fallback honnête si l'image est réellement illisible (message explicatif + conseils à l'utilisateur, jamais de texte inventé).
+- **Bug 4 RÉSOLU — Barre de progression OCR en temps réel (`CameraViewfinder.tsx` + `aiVisionService.ts`)** : Nouveau type `OCRProgressCallback` transmis depuis `digitizeTextWithVisionAI` et `beautifyHandwritingWithAI` vers l'UI. Affichage d'une barre de progression animée + étape textuelle ("Optimisation de l'image…", "Analyse du texte…", etc.) pendant le traitement. Message d'attente informatif : "L'analyse OCR peut prendre 10–30 secondes selon la qualité de l'image".
+- **Amélioration OCR — Pré-traitement image renforcé** : Ajout de la fonction `preprocessForOCR()` qui convertit l'image en niveaux de gris (ITU-R BT.709) + stretch de contraste agressif avant l'application du filtre Magic Color. Maximise la précision OCR sur texte manuscrit fin et documents en mauvaises conditions d'éclairage.
+- **Build TypeScript** : `tsc -b && vite build` validé à 100%, 0 erreur. Commit `83626e0` poussé sur `main`.
+
 ## 10. DIRECTIVE OMEGA — ARCHITECTURE DE SÉCURITÉ MAXIMALE ET COMPROMISSION ASSUMÉE (80 PRINCIPES & EVIDENCE)
 
 ### 10.1 Philosophie & Référentiels Normatifs
