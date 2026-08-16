@@ -252,6 +252,13 @@
 - **Amélioration OCR — Pré-traitement image renforcé** : Ajout de la fonction `preprocessForOCR()` qui convertit l'image en niveaux de gris (ITU-R BT.709) + stretch de contraste agressif avant l'application du filtre Magic Color. Maximise la précision OCR sur texte manuscrit fin et documents en mauvaises conditions d'éclairage.
 - **Build TypeScript** : `tsc -b && vite build` validé à 100%, 0 erreur. Commit `83626e0` poussé sur `main`.
 
+**[2026-08-16] — Session 40 : Vérification d'État & Confirmation Déploiement**
+- **État du repo** : Branch `main` à jour avec `origin/main`. Dernier commit actif : `8fc3721` (session-39-update-gemini-journal). Aucune modification locale en attente.
+- **GitHub** : ✅ Synchronisé — [github.com/elyseebanon7-ux/BanonPDF](https://github.com/elyseebanon7-ux/BanonPDF)
+- **Vercel** : ✅ Déploiement production actif — URL : `https://banon-p7cxumv2p-elyseebanon7-uxs-projects.vercel.app`
+- **Antigravity** : ✅ Journal de bord mis à jour (Session 40 présente).
+- **Fonctionnalités actives Session 39** : Option "Garder le scan tel quel" (RECOMMANDÉ), modale post-capture dans tous les modes, OCR Tesseract timeout 25s, texte hardcodé supprimé, barre de progression OCR en temps réel.
+
 ## 10. DIRECTIVE OMEGA — ARCHITECTURE DE SÉCURITÉ MAXIMALE ET COMPROMISSION ASSUMÉE (80 PRINCIPES & EVIDENCE)
 
 ### 10.1 Philosophie & Référentiels Normatifs
