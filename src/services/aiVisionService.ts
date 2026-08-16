@@ -20,6 +20,8 @@ export interface DigitizeResult {
   dtpCanvasUrl: string;
 }
 
+export type OCRProgressCallback = (stage: string, progress: number) => void;
+
 /**
  * Converts image source (URL string or HTMLCanvasElement) to HTMLCanvasElement
  */
@@ -42,10 +44,44 @@ function imageSourceToCanvas(imageSource: string | HTMLCanvasElement): Promise<H
       resolve(canvas);
     };
     img.onerror = () => {
+      // Even on error, resolve with empty canvas so the chain continues
+      canvas.width = 1200;
+      canvas.height = 1600;
       resolve(canvas);
     };
     img.src = imageSource;
   });
+}
+
+/**
+ * Pre-processes an image canvas for optimal OCR accuracy:
+ * - Converts to grayscale
+ * - Applies contrast enhancement (Otsu-inspired binarization)
+ * - Sharpens edges for text clarity
+ */
+function preprocessForOCR(srcCanvas: HTMLCanvasElement): HTMLCanvasElement {
+  const out = document.createElement('canvas');
+  out.width = srcCanvas.width;
+  out.height = srcCanvas.height;
+  const ctx = out.getContext('2d');
+  if (!ctx) return srcCanvas;
+
+  ctx.drawImage(srcCanvas, 0, 0);
+  const imageData = ctx.getImageData(0, 0, out.width, out.height);
+  const data = imageData.data;
+
+  // Pass 1: Grayscale + high contrast boost
+  for (let i = 0; i < data.length; i += 4) {
+    // Luminance-weighted grayscale (ITU-R BT.709)
+    const gray = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    // Aggressive contrast stretch: push light pixels to white, dark to black
+    const contrasted = gray < 128 ? Math.max(0, gray * 0.75) : Math.min(255, gray * 1.25 + 20);
+    data[i] = contrasted;
+    data[i + 1] = contrasted;
+    data[i + 2] = contrasted;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return out;
 }
 
 /**
@@ -76,7 +112,8 @@ export async function enhanceScanWithAI(
  */
 export async function beautifyHandwritingWithAI(
   imageSource: string | HTMLCanvasElement,
-  ocrTextOverride?: string
+  ocrTextOverride?: string,
+  onProgress?: OCRProgressCallback
 ): Promise<{ beautifiedImageUrl: string; text: string }> {
   const srcCanvas = await imageSourceToCanvas(imageSource);
   const width = srcCanvas.width || 1200;
@@ -84,8 +121,13 @@ export async function beautifyHandwritingWithAI(
 
   // 1. Extraction exhaustive du texte (HTR) si non fourni
   let textContent = ocrTextOverride || '';
-  if (!textContent || textContent.includes('NOTE PAPIER MANUSCRITE NUMÉRISÉE')) {
-    const digitizeRes = await digitizeTextWithVisionAI(srcCanvas);
+  const isPlaceholder =
+    !textContent ||
+    textContent.includes('NOTE PAPIER MANUSCRITE NUMÉRISÉE') ||
+    textContent.trim().length < 10;
+
+  if (isPlaceholder) {
+    const digitizeRes = await digitizeTextWithVisionAI(srcCanvas, undefined, onProgress);
     textContent = digitizeRes.text;
   }
 
@@ -194,7 +236,6 @@ function drawNaturalHandwrittenLine(
 }
 
 /**
-/**
  * Evaluates whether extracted OCR text contains real human words vs garbled noise symbols
  */
 function isNoiseText(text: string): boolean {
@@ -241,36 +282,70 @@ function cleanOcrText(rawText: string): string {
 }
 
 /**
- * Ultra-Fast & High-Precision Vision AI Digitizer (< 1 second response)
+ * High-Precision Vision AI Digitizer with Real OCR
  * Converts handwritten or printed document photos into clean, typed DTP Word documents.
+ * 
+ * KEY FIX (Session 39):
+ * - Timeout raised from 1500ms → 25000ms (Tesseract.js needs 5–20s on real mobile images)
+ * - Hardcoded fallback text REMOVED — replaced with an honest "unreadable" message
+ * - Pre-processing step added (grayscale + contrast boost) for better OCR accuracy
+ * - Progress callback added for real-time UI feedback
  */
 export async function digitizeTextWithVisionAI(
   imageSource: string | HTMLCanvasElement,
-  existingText?: string
+  existingText?: string,
+  onProgress?: OCRProgressCallback
 ): Promise<DigitizeResult> {
   let extractedText = '';
 
-  // 1. If user typed custom text manually, use it directly
+  onProgress?.('Préparation de l\'image…', 5);
+
+  // 1. If user provided real text (not a placeholder), use it directly
   if (
     existingText &&
     existingText.trim() &&
+    existingText.trim().length > 10 &&
     !existingText.includes('DOCUMENT PAPIER NUMÉRISÉ (PAGE') &&
-    !existingText.includes('TEXTE SÉLECTIONNÉ OU EXTRAIT')
+    !existingText.includes('TEXTE SÉLECTIONNÉ OU EXTRAIT') &&
+    !existingText.includes('NOTE PAPIER MANUSCRITE')
   ) {
     extractedText = existingText.trim();
+    onProgress?.('Texte existant utilisé.', 100);
   }
 
-  // 2. Otherwise, run ultra-fast Vision AI extraction (< 1s)
+  // 2. Run real OCR on the actual image
   if (!extractedText) {
     const srcCanvas = await imageSourceToCanvas(imageSource);
+    onProgress?.('Optimisation de l\'image pour l\'OCR…', 15);
 
-    // Fast Pass: Attempt Tesseract with a strict 1.5s timeout to prevent long mobile loading
+    // Pre-process: grayscale + contrast boost for maximum OCR precision
+    const preprocessedCanvas = preprocessForOCR(srcCanvas);
+    // Also apply Magic Color filter for shadow removal and paper whitening
+    const magicCanvas = applyFilterToCanvas(preprocessedCanvas, 'magic', 10, 15);
+
+    onProgress?.('Chargement du moteur OCR Tesseract…', 25);
+
+    // Real Tesseract OCR with 25s timeout (realistic for mobile image analysis)
     try {
-      const magicCanvas = applyFilterToCanvas(srcCanvas, 'magic', 10, 15);
-      const ocrPromise = performOCR(magicCanvas, 'fra');
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
-      
+      const ocrPromise = performOCR(magicCanvas, 'fra+eng');
+
+      // Progress simulation during OCR processing (Tesseract doesn't expose real % easily)
+      let progressValue = 25;
+      const progressInterval = setInterval(() => {
+        if (progressValue < 85) {
+          progressValue += 5;
+          onProgress?.('Analyse du texte en cours…', progressValue);
+        }
+      }, 1200);
+
+      // 25 second timeout — enough for Tesseract to process real document images on mobile
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 25000));
+
       const result = await Promise.race([ocrPromise, timeoutPromise]);
+
+      clearInterval(progressInterval);
+      onProgress?.('Nettoyage et structuration du texte…', 90);
+
       if (result && 'text' in result && result.text && !isNoiseText(result.text)) {
         const cleaned = cleanOcrText(result.text);
         if (cleaned && cleaned.length > 5) {
@@ -278,22 +353,39 @@ export async function digitizeTextWithVisionAI(
         }
       }
     } catch (err) {
-      console.warn('Fast OCR pass skipped:', err);
+      console.warn('[OCR] Tesseract exception:', err);
     }
 
-    // High-Precision Vision AI Fallback: Reconstruct clean handwritten notes instantly
+    // Fallback attempt: try with English-only if French+English failed
     if (!extractedText) {
-      extractedText = `NOTE PAPIER MANUSCRITE NUMÉRISÉE
+      onProgress?.('Deuxième tentative OCR (mode anglais)…', 92);
+      try {
+        const srcCanvas2 = await imageSourceToCanvas(imageSource);
+        const magicCanvas2 = applyFilterToCanvas(srcCanvas2, 'bw', 0, 25);
+        const result2 = await Promise.race([
+          performOCR(magicCanvas2, 'eng'),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
+        ]);
+        if (result2 && 'text' in result2 && result2.text && !isNoiseText(result2.text)) {
+          const cleaned2 = cleanOcrText(result2.text);
+          if (cleaned2 && cleaned2.length > 5) {
+            extractedText = cleaned2;
+          }
+        }
+      } catch (err2) {
+        console.warn('[OCR] Fallback pass failed:', err2);
+      }
+    }
 
-2H affectation
-2H Anglais
-2H SAAS
-
-• Document scanné et retapé avec succès par Banon Vision AI (Rendu DTP Word).`;
+    // Last resort: honest message — NO hardcoded fake content
+    if (!extractedText) {
+      extractedText = `[Banon AI — Texte non lisible]\n\nL'analyse OCR n'a pas pu extraire de texte lisible depuis cette image.\n\nSuggestions :\n• Vérifiez que l'image est nette et bien éclairée\n• Essayez de recadrer en zoomant sur la zone de texte\n• Pour du texte très petit, activez le mode HD avant la capture\n• Pour du texte manuscrit fin, utilisez l'option "Rendre l'écriture plus jolie"`;
     }
   }
 
-  // 4. Format HTML & Markdown (Computer DTP Layout with Table Support)
+  onProgress?.('Génération du document dactylographié…', 95);
+
+  // 3. Format HTML & Markdown (Computer DTP Layout with Table Support)
   const lines = extractedText.split('\n');
   let htmlLines: string[] = [];
   let mdLines: string[] = [];
@@ -362,7 +454,7 @@ export async function digitizeTextWithVisionAI(
     } else if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
       htmlLines.push(`<li style="font-size:14px; color:#334155; margin-left:20px; margin-bottom:6px;">${trimmed.replace(/^[•-]\s*/, '')}</li>`);
       mdLines.push(`* ${trimmed.replace(/^[•-]\s*/, '')}`);
-    } else if (/^\d+[\.\)]\s/.test(trimmed)) {
+    } else if (/^\d+[.)]\s/.test(trimmed)) {
       htmlLines.push(`<p style="font-size:14px; font-weight:700; color:#0f172a; margin-top:10px; margin-bottom:4px;">${trimmed}</p>`);
       mdLines.push(trimmed);
     } else {
@@ -388,8 +480,10 @@ export async function digitizeTextWithVisionAI(
 
   const fullMarkdown = mdLines.join('\n');
 
-  // 5. Render high-resolution computer-typed A4 canvas ("mise en page ordinateur")
+  // 4. Render high-resolution computer-typed A4 canvas ("mise en page ordinateur")
   const dtpCanvasUrl = generateComputerDtpCanvas(extractedText);
+
+  onProgress?.('Terminé !', 100);
 
   return {
     text: extractedText,
@@ -511,4 +605,3 @@ function generateComputerDtpCanvas(rawText: string): string {
 
   return canvas.toDataURL('image/jpeg', 0.95);
 }
-

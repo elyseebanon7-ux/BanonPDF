@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Zap, ZapOff, Clock, Sparkles, X, Camera as CameraIcon, Plus, FileText, CheckCircle2, Image as ImageIcon, Grid, Layers, ArrowLeft, RefreshCw } from 'lucide-react';
 import type { QuadCorners, ScanPage } from '../types';
 import { getDefaultCorners, applyFilterToCanvas, processScanOriginalPro } from '../services/imageProcessor';
-import { digitizeTextWithVisionAI, beautifyHandwritingWithAI } from '../services/aiVisionService';
+import { digitizeTextWithVisionAI, beautifyHandwritingWithAI, type OCRProgressCallback } from '../services/aiVisionService';
 import { saveScanRecordToSupabase } from '../services/supabaseClient';
 
 interface CameraViewfinderProps {
@@ -27,7 +27,15 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
   const [pendingPages, setPendingPages] = useState<ScanPage[]>([]);
   const [lastCapturedToast, setLastCapturedToast] = useState<string | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
-  const [activeActionType, setActiveActionType] = useState<'enhance' | 'digitize' | 'beautify' | null>(null);
+  const [activeActionType, setActiveActionType] = useState<'enhance' | 'digitize' | 'beautify' | 'keep' | null>(null);
+  // OCR progress feedback state
+  const [ocrProgressStage, setOcrProgressStage] = useState<string>('');
+  const [ocrProgressValue, setOcrProgressValue] = useState<number>(0);
+
+  const ocrProgressCallback: OCRProgressCallback = (stage: string, progress: number) => {
+    setOcrProgressStage(stage);
+    setOcrProgressValue(progress);
+  };
 
   /**
    * Universal Supabase Digitize Handler
@@ -54,6 +62,27 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
     } catch (err) {
       console.warn('[Supabase Digitize Exception]', err);
     }
+  };
+
+  /**
+   * PARCOURS 0 : GARDER LE SCAN TEL QUEL (sans aucun traitement IA)
+   * L'utilisateur conserve la photo numérisée exactement telle qu'elle a été capturée,
+   * avec uniquement le filtre Magic Color de base appliqué à la capture.
+   */
+  const handleKeepOriginal = async () => {
+    const pagesToProcess = pendingPages.length > 0 ? pendingPages : scannedPages;
+    if (pagesToProcess.length === 0) return;
+
+    setIsProcessingAction(true);
+    setActiveActionType('keep');
+
+    // Save to Supabase as 'clean' scan without any additional processing
+    await handleDigitize('clean', pagesToProcess);
+
+    setShowRenderChoiceModal(false);
+    setIsProcessingAction(false);
+    setActiveActionType(null);
+    onCaptureCompleted(pagesToProcess);
   };
 
   /**
@@ -124,29 +153,32 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
 
     setIsProcessingAction(true);
     setActiveActionType('digitize');
+    setOcrProgressStage('Démarrage de l\'analyse OCR…');
+    setOcrProgressValue(0);
 
     try {
       let combinedOcrText = '';
-      const digitizedPages: ScanPage[] = await Promise.all(
-        pagesToProcess.map(async (page) => {
-          const result = await digitizeTextWithVisionAI(
-            page.originalImageUrl || page.processedImageUrl,
-            page.ocrText
-          );
+      // Process pages sequentially (not in parallel) to provide accurate progress feedback
+      const digitizedPages: ScanPage[] = [];
+      for (const page of pagesToProcess) {
+        const result = await digitizeTextWithVisionAI(
+          page.originalImageUrl || page.processedImageUrl,
+          page.ocrText,
+          ocrProgressCallback
+        );
 
-          if (result.text) {
-            combinedOcrText += (combinedOcrText ? '\n\n' : '') + result.text;
-          }
+        if (result.text) {
+          combinedOcrText += (combinedOcrText ? '\n\n' : '') + result.text;
+        }
 
-          return {
-            ...page,
-            ocrText: result.text,
-            processedImageUrl: result.dtpCanvasUrl,
-            thumbnailUrl: result.dtpCanvasUrl,
-            filter: 'bw',
-          };
-        })
-      );
+        digitizedPages.push({
+          ...page,
+          ocrText: result.text,
+          processedImageUrl: result.dtpCanvasUrl || page.processedImageUrl,
+          thumbnailUrl: result.dtpCanvasUrl || page.thumbnailUrl,
+          filter: 'bw',
+        });
+      }
 
       // Save to Supabase scans table (Mode 'ocr')
       await handleDigitize('ocr', digitizedPages, combinedOcrText);
@@ -154,11 +186,15 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
       setShowRenderChoiceModal(false);
       setIsProcessingAction(false);
       setActiveActionType(null);
+      setOcrProgressStage('');
+      setOcrProgressValue(0);
       onCaptureCompleted(digitizedPages);
     } catch (err) {
       console.error('Digitize text error:', err);
       setIsProcessingAction(false);
       setActiveActionType(null);
+      setOcrProgressStage('');
+      setOcrProgressValue(0);
       onCaptureCompleted(pagesToProcess);
     }
   };
@@ -174,29 +210,31 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
 
     setIsProcessingAction(true);
     setActiveActionType('beautify');
+    setOcrProgressStage('Analyse calligraphique en cours…');
+    setOcrProgressValue(0);
 
     try {
       let combinedOcrText = '';
-      const beautifiedPages: ScanPage[] = await Promise.all(
-        pagesToProcess.map(async (page) => {
-          const result = await beautifyHandwritingWithAI(
-            page.originalImageUrl || page.processedImageUrl,
-            page.ocrText
-          );
+      const beautifiedPages: ScanPage[] = [];
+      for (const page of pagesToProcess) {
+        const result = await beautifyHandwritingWithAI(
+          page.originalImageUrl || page.processedImageUrl,
+          page.ocrText,
+          ocrProgressCallback
+        );
 
-          if (result.text) {
-            combinedOcrText += (combinedOcrText ? '\n\n' : '') + result.text;
-          }
+        if (result.text) {
+          combinedOcrText += (combinedOcrText ? '\n\n' : '') + result.text;
+        }
 
-          return {
-            ...page,
-            ocrText: result.text,
-            processedImageUrl: result.beautifiedImageUrl,
-            thumbnailUrl: result.beautifiedImageUrl,
-            filter: 'magic',
-          };
-        })
-      );
+        beautifiedPages.push({
+          ...page,
+          ocrText: result.text,
+          processedImageUrl: result.beautifiedImageUrl,
+          thumbnailUrl: result.beautifiedImageUrl,
+          filter: 'magic',
+        });
+      }
 
       // Save to Supabase scans table (Mode 'clean')
       await handleDigitize('clean', beautifiedPages, combinedOcrText);
@@ -204,11 +242,15 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
       setShowRenderChoiceModal(false);
       setIsProcessingAction(false);
       setActiveActionType(null);
+      setOcrProgressStage('');
+      setOcrProgressValue(0);
       onCaptureCompleted(beautifiedPages);
     } catch (err) {
       console.error('Beautify handwriting error:', err);
       setIsProcessingAction(false);
       setActiveActionType(null);
+      setOcrProgressStage('');
+      setOcrProgressValue(0);
       onCaptureCompleted(pagesToProcess);
     }
   };
@@ -431,10 +473,9 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
         osc.stop(audioCtx.currentTime + 0.12);
       } catch {}
 
-      if (scanMode === 'simple') {
-        setPendingPages([newPage]);
-        setShowRenderChoiceModal(true);
-      }
+      // Modal opens in ALL scan modes after a capture so user can always choose what to do
+      setPendingPages([newPage]);
+      setShowRenderChoiceModal(true);
     };
     img.onerror = () => {
       console.warn('Image processing fallback triggered');
@@ -455,10 +496,8 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
         createdAt: Date.now(),
       };
       setScannedPages([...scannedPages, fallbackPage]);
-      if (scanMode === 'simple') {
-        setPendingPages([fallbackPage]);
-        setShowRenderChoiceModal(true);
-      }
+      setPendingPages([fallbackPage]);
+      setShowRenderChoiceModal(true);
     };
   };
 
@@ -805,18 +844,18 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
       {/* Post-Capture 2-Option Choice Dialog Modal */}
       {showRenderChoiceModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-white">
-            <div className="text-center space-y-1.5">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto mb-2 shadow-lg">
-                <Sparkles className="w-6 h-6 stroke-[2.5]" />
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200 text-white">
+            <div className="text-center space-y-1">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto mb-1.5 shadow-lg">
+                <Sparkles className="w-5 h-5 stroke-[2.5]" />
               </div>
-              <h3 className="text-xl font-black tracking-tight text-white">Rendu de Numérisation</h3>
-              <p className="text-xs font-medium text-slate-400">Comment souhaitez-vous traiter ce document ?</p>
+              <h3 className="text-lg font-black tracking-tight text-white">Rendu de Numérisation</h3>
+              <p className="text-[11px] font-medium text-slate-400">Comment souhaitez-vous traiter ce document ?</p>
             </div>
 
             {/* Prévisualisation immédiate du document capturé */}
             {(pendingPages.length > 0 || scannedPages.length > 0) && (
-              <div className="relative w-full h-44 rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden flex items-center justify-center p-2">
+              <div className="relative w-full h-36 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden flex items-center justify-center p-2">
                 <img
                   src={
                     (pendingPages[0] || scannedPages[scannedPages.length - 1])?.thumbnailUrl ||
@@ -826,26 +865,73 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
                   alt="Prévisualisation du document"
                   className="max-h-full max-w-full object-contain rounded-lg shadow-xl"
                 />
-                <div className="absolute top-2.5 right-2.5 bg-slate-900/90 text-emerald-400 text-[10px] font-black px-2.5 py-1 rounded-full border border-emerald-500/40 shadow-lg flex items-center gap-1">
+                <div className="absolute top-2 right-2 bg-slate-900/90 text-emerald-400 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-500/40 shadow-lg flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                  <span>Document Capturé</span>
+                  <span>Capturé</span>
                 </div>
               </div>
             )}
 
-            {/* Options Post-Scan d'Écriture Manuscrite & Traitement Pro */}
-            <div className="space-y-3">
-              {/* Option 1 : Saisie automatique (HTR -> Texte Word) */}
+            {/* OCR progress bar — shown while any IA action is running */}
+            {isProcessingAction && (
+              <div className="space-y-1.5 px-1">
+                <div className="flex items-center justify-between text-[10px] font-bold">
+                  <span className="text-slate-300 flex items-center gap-1.5">
+                    <RefreshCw className="w-3 h-3 animate-spin text-emerald-400" />
+                    {ocrProgressStage || 'Traitement en cours…'}
+                  </span>
+                  <span className="text-emerald-400">{ocrProgressValue}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                    style={{ width: `${ocrProgressValue}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 text-center">L'analyse OCR peut prendre 10–30 secondes selon la qualité de l'image</p>
+              </div>
+            )}
+
+            {/* Options Post-Scan */}
+            <div className="space-y-2.5">
+
+              {/* ── OPTION 0 : Garder le scan tel quel (PRIORITÉ ABSOLUE — affiché en premier) ── */}
+              <button
+                onClick={handleKeepOriginal}
+                disabled={isProcessingAction}
+                className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 border-2 border-emerald-500 flex items-start gap-3 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-900/30 cursor-pointer disabled:opacity-50 relative"
+              >
+                {/* RECOMMANDÉ badge */}
+                <span className="absolute -top-2 left-4 px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500 text-slate-950 shadow-md">RECOMMANDÉ</span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md">
+                  {activeActionType === 'keep' ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-emerald-300">📸 Garder le scan tel quel</h4>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">Rapide</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-snug mt-0.5 font-normal">
+                    Conserve votre photo numérisée exactement telle quelle. Aucun traitement supplémentaire.
+                  </p>
+                </div>
+              </button>
+
+              {/* ── OPTION 1 : Saisie automatique (HTR → Texte Word) ── */}
               <button
                 onClick={handleDigitizeText}
                 disabled={isProcessingAction}
-                className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/70 flex items-start gap-3 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
+                className="w-full p-3 rounded-2xl bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/70 flex items-start gap-3 text-left transition-all active:scale-95 group shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
               >
-                <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md font-bold">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md font-bold">
                   {activeActionType === 'digitize' ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-950" />
                   ) : (
-                    <Sparkles className="w-4 h-4 stroke-[2.5]" />
+                    <Sparkles className="w-3.5 h-3.5 stroke-[2.5]" />
                   )}
                 </div>
                 <div className="flex-1">
@@ -853,23 +939,23 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
                     <h4 className="text-xs font-black text-emerald-300">📝 Saisie automatique (Texte Word)</h4>
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/50">HTR Digital</span>
                   </div>
-                  <p className="text-[11px] text-emerald-100/90 leading-snug mt-0.5 font-normal">
-                    Reconnaît l'écriture manuscrite et la transforme en vrai texte numérique propre, éditable et sélectionnable (comme Word).
+                  <p className="text-[10px] text-emerald-100/80 leading-snug mt-0.5">
+                    OCR réel sur votre photo → texte numérique éditable (style Word).
                   </p>
                 </div>
               </button>
 
-              {/* Option 2 : Rendre l'écriture plus jolie (Reconstruction Calligraphique Manuscrite) */}
+              {/* ── OPTION 2 : Rendre l'écriture plus jolie ── */}
               <button
                 onClick={handleBeautifyHandwriting}
                 disabled={isProcessingAction}
-                className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/90 to-indigo-950/90 hover:from-purple-900 hover:to-indigo-900 border border-purple-500/70 flex items-start gap-3 text-left transition-all active:scale-95 group shadow-lg shadow-purple-950/50 cursor-pointer disabled:opacity-50"
+                className="w-full p-3 rounded-2xl bg-gradient-to-r from-purple-950/90 to-indigo-950/90 hover:from-purple-900 hover:to-indigo-900 border border-purple-500/70 flex items-start gap-3 text-left transition-all active:scale-95 group shadow-lg shadow-purple-950/50 cursor-pointer disabled:opacity-50"
               >
-                <div className="w-9 h-9 rounded-xl bg-purple-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md font-bold">
+                <div className="w-8 h-8 rounded-xl bg-purple-500 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform shadow-md font-bold">
                   {activeActionType === 'beautify' ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-950" />
                   ) : (
-                    <Sparkles className="w-4 h-4 stroke-[2.5]" />
+                    <Sparkles className="w-3.5 h-3.5 stroke-[2.5]" />
                   )}
                 </div>
                 <div className="flex-1">
@@ -877,31 +963,29 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
                     <h4 className="text-xs font-black text-purple-300">✨ Rendre l'écriture plus jolie</h4>
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/30 text-purple-200 border border-purple-400/50">Calligraphie IA</span>
                   </div>
-                  <p className="text-[11px] text-purple-100/90 leading-snug mt-0.5 font-normal">
-                    Reconstruit votre écriture manuscrite pour la rendre propre, régulière et lisible tout en conservant son aspect naturel.
+                  <p className="text-[10px] text-purple-100/80 leading-snug mt-0.5">
+                    Reconstruit l'écriture manuscrite en calligraphie propre et régulière.
                   </p>
                 </div>
               </button>
 
-              {/* Option 3 : Document Original — Scanner Pro */}
+              {/* ── OPTION 3 : Scanner Pro (Magic Color) ── */}
               <button
                 onClick={handleEnhanceScan}
                 disabled={isProcessingAction}
-                className="w-full p-3.5 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 flex items-start gap-3 text-left transition-all active:scale-95 group cursor-pointer disabled:opacity-50"
+                className="w-full p-3 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 flex items-start gap-3 text-left transition-all active:scale-95 group cursor-pointer disabled:opacity-50"
               >
-                <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
+                <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
                   {activeActionType === 'enhance' ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-400" />
                   ) : (
-                    <FileText className="w-4 h-4 stroke-[2.5]" />
+                    <FileText className="w-3.5 h-3.5 stroke-[2.5]" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black text-white group-hover:text-blue-300">📄 Document Original — Scanner Pro</h4>
-                  </div>
-                  <p className="text-[11px] text-slate-300 leading-snug mt-0.5 font-normal">
-                    Nettoie et transforme automatiquement votre photo en document numérisé (Magic Color Pro).
+                  <h4 className="text-xs font-black text-white group-hover:text-blue-300">📄 Scanner Pro (Magic Color)</h4>
+                  <p className="text-[10px] text-slate-400 leading-snug mt-0.5">
+                    Blanchiment du papier, contraste élevé, suppression des ombres.
                   </p>
                 </div>
               </button>
@@ -909,10 +993,10 @@ export const CameraViewfinder: React.FC<CameraViewfinderProps> = ({
 
             <button
               onClick={() => {
-                setShowRenderChoiceModal(false);
+                if (!isProcessingAction) setShowRenderChoiceModal(false);
               }}
               disabled={isProcessingAction}
-              className="w-full py-2.5 text-center text-xs font-bold text-slate-400 hover:text-white cursor-pointer transition-colors"
+              className="w-full py-2 text-center text-xs font-bold text-slate-500 hover:text-white cursor-pointer transition-colors disabled:cursor-not-allowed"
             >
               Annuler
             </button>
